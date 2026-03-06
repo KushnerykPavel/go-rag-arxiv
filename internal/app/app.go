@@ -57,6 +57,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	scheduler.Start()
 	a.l.Infow("scheduler started", "schedule", "daily at 05:00")
+	_ = telegramClient.SendMarkdown(ctx, a.cfg.TelegramConfig.ChatID, "🚀 application started")
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
