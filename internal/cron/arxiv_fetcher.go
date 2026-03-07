@@ -18,7 +18,7 @@ var topicList = []string{
 }
 
 type fetcher interface {
-	FetchPapersWithQuery(ctx context.Context, query string, params arxiv.FetchParams) ([]arxiv.Paper, error)
+	FetchPapers(ctx context.Context, params arxiv.FetchParams) ([]arxiv.Paper, error)
 }
 
 type notifier interface {
@@ -55,12 +55,13 @@ func (f *ArxivFetcher) FetchPapers(ctx context.Context) {
 
 	for _, topic := range topicList {
 		params := arxiv.FetchParams{
-			MaxResults: 2000,
-			FromDate:   dateFrom,
-			ToDate:     dateTo,
+			SearchCategory: topic,
+			MaxResults:     2000,
+			FromDate:       dateFrom,
+			ToDate:         dateTo,
 		}
 
-		papers, err := f.arxivClient.FetchPapersWithQuery(ctx, "cat:"+topic, params)
+		papers, err := f.arxivClient.FetchPapers(ctx, params)
 		if err != nil {
 			f.l.Errorw("failed to fetch papers",
 				"topic", topic,

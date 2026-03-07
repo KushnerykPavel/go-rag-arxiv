@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -12,10 +13,13 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/client/arxiv"
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/client/telegram"
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/cron"
+	arxivv1 "github.com/KushnerykPavel/go-rag-arxiv/internal/gen/arxiv/v1"
+	grpcserver "github.com/KushnerykPavel/go-rag-arxiv/internal/server/grpc"
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/wrappers"
 )
 
@@ -75,24 +79,42 @@ func (a *App) Run(ctx context.Context) error {
 
 	errGrp.Go(func() error {
 		a.l.Infow("http server started", "address", a.cfg.Address)
-		if err := srv.ListenAndServe(); err != nil && errors.Is(err, http.ErrServerClosed) {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("http server: %w", err)
 		}
 		return nil
 	})
 
+	// gRPC server
+	grpcSrv := grpc.NewServer()
+	arxivv1.RegisterArxivServiceServer(grpcSrv, grpcserver.NewArxivHandler(arxivClient, a.l))
+
+	errGrp.Go(func() error {
+		lis, err := net.Listen("tcp", a.cfg.GRPCAddress)
+		if err != nil {
+			return fmt.Errorf("grpc listen: %w", err)
+		}
+		a.l.Infow("grpc server started", "address", a.cfg.GRPCAddress)
+		if err := grpcSrv.Serve(lis); err != nil {
+			return fmt.Errorf("grpc server: %w", err)
+		}
+		return nil
+	})
+
 	<-ctx.Done()
-	a.l.Info("shutting down scheduler")
+	a.l.Info("shutting down")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
 
 	if err := scheduler.Shutdown(); err != nil {
 		return fmt.Errorf("shutting down scheduler: %w", err)
 	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		a.l.Errorw("http server shutdown error", "error", err)
 	}
+	grpcSrv.GracefulStop()
 
-	return nil
+	_ = telegramClient.SendMarkdown(ctx, a.cfg.TelegramConfig.ChatID, "🚀 application stopped")
+	return errGrp.Wait()
 }

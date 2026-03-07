@@ -1,8 +1,9 @@
 package app
 
 type Config struct {
-	Address    string `envconfig:"ADDRESS" default:":8080"`
-	GroqAPIKey string `envconfig:"GROQ_API_KEY" required:"true"`
+	Address     string `envconfig:"ADDRESS" default:":8080"`
+	GRPCAddress string `envconfig:"GRPC_ADDRESS" default:":9090"`
+	GroqAPIKey  string `envconfig:"GROQ_API_KEY" required:"true"`
 
 	TelegramConfig
 }
