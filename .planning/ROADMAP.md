@@ -42,7 +42,11 @@ Plans:
   2. `Ask` responses are grounded in retrieved arXiv papers rather than returning an answer without retrieval context.
   3. User receives citations in `Ask` output including paper identifiers/titles/links.
   4. User receives stable gRPC status codes for invalid input and downstream retrieval/generation failures.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — Reintroduce Ask proto/generated gRPC contract with transport contract tests (RAG-01).
+- [ ] 02-02-PLAN.md — Implement retrieval-first Ask runtime pipeline, citations, handler wiring, and status/error mapping (RAG-02, RAG-03, APC-03).
+- [ ] 02-03-PLAN.md — Add deterministic Ask transport/pipeline/client tests and full phase verification gate (RAG-01, RAG-02, RAG-03, APC-03).
 
 ### Phase 3: Security Hardening
 **Goal**: Service can be run in a production-ready secure mode for transport and endpoint/message handling.
