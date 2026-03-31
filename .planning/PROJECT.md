@@ -1,57 +1,53 @@
-# go-rag-arxiv
+# Arxiv Survey Filter
 
 ## What This Is
 
-go-rag-arxiv is a Go service that fetches recent arXiv papers on a schedule, exposes paper search over gRPC, and sends paper notifications to Telegram. It is aimed at users who want a lightweight backend for research paper discovery and alerting. The codebase is currently a brownfield baseline with retrieval/search implemented and answer-generation (RAG `Ask`) still pending.
+A filter layer on the existing arXiv fetch → Telegram pipeline that only forwards survey/review-style papers in the specified arXiv categories. It is designed for internal use to reduce noise by sending only higher-level survey content about AI (and related topics as defined by the category list).
 
 ## Core Value
 
-Deliver relevant arXiv paper discovery and notifications reliably, with a clear path to answer-generation over retrieved papers.
+Only survey/review articles from the chosen arXiv categories reach the Telegram channel.
 
 ## Requirements
 
 ### Validated
 
-- ✓ Daily paper fetch workflow runs via scheduler and topic queries — existing in `internal/app/app.go` and `internal/cron/arxiv_fetcher.go`
-- ✓ Telegram paper notifications are sent from fetched results — existing in `internal/client/telegram/client.go`
-- ✓ gRPC paper search API is implemented (`Search`) — existing in `internal/server/grpc/arxiv.go`
-- ✓ Health check endpoint is exposed over HTTP (`/health`) — existing in `internal/app/app.go`
-- ✓ Local PDF caching/downloading is implemented in arXiv client — existing in `internal/client/arxiv/client.go`
-- ✓ Public gRPC contract is aligned to implemented runtime behavior (no declared unimplemented RPCs) — validated in Phase 1 (`APC-01`)
-- ✓ Runtime config validation now requires only actively used keys with explicit errors — validated in Phase 1 (`APC-02`)
+- ✓ Scheduled arXiv fetching by category list exists and runs daily — existing
+- ✓ Telegram notifications are sent from the fetch pipeline — existing
+- ✓ Topic/category list is configurable in code — existing
 
 ### Active
 
-- [ ] Implement `Ask` RPC end-to-end using retrieval + LLM answer generation
-- [ ] Harden transport/security posture for gRPC and service exposure
-- [ ] Add deterministic tests for transport, scheduler, and client resilience paths
+- [ ] Filter papers by a fixed `SURVEY_KEYWORDS` list, matching case-insensitive in both title and abstract
+- [ ] Only include papers whose arXiv category is in the configured topic list (currently `cs.AI`, `cs.CL`)
+- [ ] Send to Telegram only the papers that pass the survey keyword filter
+- [ ] Keep existing fetch schedule and output formatting unchanged for matching papers
 
 ### Out of Scope
 
-- Public frontend/web UI — current project scope is backend service only
-- Multi-tenant user/account management — not required for current Telegram-centric workflow
+- Cryptography category expansion (e.g., `cs.CR`) — not requested for v1
+- Non-survey papers in the same categories — explicitly excluded
+- New sources beyond arXiv — arXiv API only
+- UI/dashboard for managing filters — not required for v1
 
 ## Context
 
-- Runtime stack is Go 1.26 with gRPC, chi, gocron, envconfig, and zap.
-- The architecture is a layered modular monolith with a composition-root `App.Run` that wires clients, scheduler, and servers.
-- Brownfield mapping completed on 2026-03-31 under `.planning/codebase/` and highlights key gaps: unimplemented `Ask` RPC, config/contract drift, weak security defaults, and limited test coverage.
-- The repository already uses git and protobuf generation (`buf`) with generated stubs in `internal/gen/arxiv/v1/`.
+There is an existing Go service that fetches arXiv papers on a cron schedule and sends messages to Telegram. The fetching logic lives in `func (f *ArxivFetcher) FetchPapers(ctx context.Context)` and already filters by a topic/category list. This project adds a survey-only filter using a predefined keyword list and applies it to both title and abstract before sending to Telegram.
 
 ## Constraints
 
-- **Tech stack**: Go + gRPC + existing client abstractions — preserve current patterns to reduce refactor risk.
-- **Brownfield compatibility**: Existing `Search` API and scheduled notification behavior must remain stable while adding new features.
-- **Operational simplicity**: Service should remain straightforward to run in containerized environments with env-based configuration.
-- **Quality**: New work should increase deterministic test coverage, especially around transport and scheduled workflows.
+- **Source**: arXiv API — existing integration must remain the input source
+- **Runtime**: Go service with existing cron job — must integrate with current pipeline
+- **Filter Logic**: Keyword list is fixed for v1; match is case-insensitive over title + abstract
+- **Categories**: Only those in the current topic list (`cs.AI`, `cs.CL`)
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Initialize as brownfield using inferred validated requirements | Existing code already delivers core retrieval/notification capabilities | ✓ Good |
-| Prioritize `Ask` pipeline as first major active capability | gRPC contract and env config already signal this direction; currently missing in runtime | — Pending |
-| Keep architecture modular monolith for now | Current size/scope does not justify distributed split; focus on correctness and reliability first | ✓ Good |
+| Use a fixed `SURVEY_KEYWORDS` list | Simple, predictable filter for survey/review content | — Pending |
+| Match keywords against both title and abstract | Avoid missing surveys that omit keywords in title | — Pending |
+| Filter only within configured arXiv categories | Preserve existing category scope | — Pending |
 
 ## Evolution
 
@@ -71,4 +67,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after Phase 1 completion*
+*Last updated: 2026-03-31 after initialization*
