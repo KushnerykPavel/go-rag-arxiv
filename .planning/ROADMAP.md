@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plans
 
 Plans:
-- [ ] 01-survey-filter-delivery-01-PLAN.md — Add survey eligibility filter with fixed keywords and tests in cron fetch flow
+- [x] 01-survey-filter-delivery-01-PLAN.md — Add survey eligibility filter with fixed keywords and tests in cron fetch flow
 
 ## Progress
 
