@@ -15,13 +15,14 @@ Only survey/review articles from the chosen arXiv categories reach the Telegram 
 - ✓ Scheduled arXiv fetching by category list exists and runs daily — existing
 - ✓ Telegram notifications are sent from the fetch pipeline — existing
 - ✓ Topic/category list is configurable in code — existing
+- ✓ Filter papers by a fixed `SURVEY_KEYWORDS` list, matching case-insensitive in both title and abstract — Validated in Phase 01: Survey Filter Delivery
+- ✓ Only include papers whose arXiv category is in the configured topic list (currently `cs.AI`, `cs.CL`) — Validated in Phase 01: Survey Filter Delivery
+- ✓ Send to Telegram only the papers that pass the survey keyword filter — Validated in Phase 01: Survey Filter Delivery
+- ✓ Keep existing fetch schedule and output formatting unchanged for matching papers — Validated in Phase 01: Survey Filter Delivery
 
 ### Active
 
-- [ ] Filter papers by a fixed `SURVEY_KEYWORDS` list, matching case-insensitive in both title and abstract
-- [ ] Only include papers whose arXiv category is in the configured topic list (currently `cs.AI`, `cs.CL`)
-- [ ] Send to Telegram only the papers that pass the survey keyword filter
-- [ ] Keep existing fetch schedule and output formatting unchanged for matching papers
+(None)
 
 ### Out of Scope
 
@@ -45,9 +46,13 @@ There is an existing Go service that fetches arXiv papers on a cron schedule and
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use a fixed `SURVEY_KEYWORDS` list | Simple, predictable filter for survey/review content | — Pending |
-| Match keywords against both title and abstract | Avoid missing surveys that omit keywords in title | — Pending |
-| Filter only within configured arXiv categories | Preserve existing category scope | — Pending |
+| Use a fixed `SURVEY_KEYWORDS` list | Simple, predictable filter for survey/review content | Implemented in Phase 01 |
+| Match keywords against both title and abstract | Avoid missing surveys that omit keywords in title | Implemented in Phase 01 |
+| Filter only within configured arXiv categories | Preserve existing category scope | Implemented in Phase 01 |
+
+## Current State
+
+Phase 01 complete — survey-only eligibility gate and regression coverage added to the cron fetch pipeline.
 
 ## Evolution
 
@@ -67,4 +72,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after initialization*
+*Last updated: 2026-03-31 after Phase 01 completion*
