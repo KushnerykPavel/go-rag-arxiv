@@ -17,11 +17,12 @@ Deliver relevant arXiv paper discovery and notifications reliably, with a clear 
 - ✓ gRPC paper search API is implemented (`Search`) — existing in `internal/server/grpc/arxiv.go`
 - ✓ Health check endpoint is exposed over HTTP (`/health`) — existing in `internal/app/app.go`
 - ✓ Local PDF caching/downloading is implemented in arXiv client — existing in `internal/client/arxiv/client.go`
+- ✓ Public gRPC contract is aligned to implemented runtime behavior (no declared unimplemented RPCs) — validated in Phase 1 (`APC-01`)
+- ✓ Runtime config validation now requires only actively used keys with explicit errors — validated in Phase 1 (`APC-02`)
 
 ### Active
 
 - [ ] Implement `Ask` RPC end-to-end using retrieval + LLM answer generation
-- [ ] Align runtime configuration with actual usage (make unused required settings optional or wire them in)
 - [ ] Harden transport/security posture for gRPC and service exposure
 - [ ] Add deterministic tests for transport, scheduler, and client resilience paths
 
@@ -70,4 +71,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after initialization*
+*Last updated: 2026-03-31 after Phase 1 completion*
