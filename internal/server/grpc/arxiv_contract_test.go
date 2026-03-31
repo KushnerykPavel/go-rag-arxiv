@@ -9,6 +9,7 @@ import (
 func TestArxivServiceContract(t *testing.T) {
 	explicitHandlerMethods := map[string]struct{}{
 		"Search": {},
+		"Ask":    {},
 	}
 
 	for _, method := range arxivv1.ArxivService_ServiceDesc.Methods {
