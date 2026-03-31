@@ -30,8 +30,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Configuration validation errors clearly identify missing values that are actually required at runtime.
 **Plans**: 2 plans
 Plans:
-- [ ] 01-contract-baseline-01-PLAN.md — Align proto and generated gRPC contract to implemented runtime RPC surface (APC-01).
-- [ ] 01-contract-baseline-02-PLAN.md — Align runtime config requirements and startup validation with actual usage (APC-02).
+- [x] 01-contract-baseline-01-PLAN.md — Align proto and generated gRPC contract to implemented runtime RPC surface (APC-01).
+- [x] 01-contract-baseline-02-PLAN.md — Align runtime config requirements and startup validation with actual usage (APC-02).
 
 ### Phase 2: RAG Ask Delivery
 **Goal**: Users can ask natural-language questions over gRPC and receive grounded answers with paper citations.
