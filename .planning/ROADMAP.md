@@ -12,7 +12,7 @@ This roadmap delivers the missing `Ask` capability, aligns API/config contracts 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Contract Baseline** - Align public RPC/config contracts with implemented runtime behavior.
+- [x] **Phase 1: Contract Baseline** - Align public RPC/config contracts with implemented runtime behavior.
 - [ ] **Phase 2: RAG Ask Delivery** - Deliver end-to-end `Ask` answering with retrieval, citations, and stable error mapping.
 - [ ] **Phase 3: Security Hardening** - Enable secure production transport and safer endpoint/message handling.
 - [ ] **Phase 4: Transport Determinism** - Add deterministic transport tests for gRPC behavior and validation paths.
@@ -78,7 +78,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Contract Baseline | 0/TBD | Not started | - |
+| 1. Contract Baseline | 2/2 | Complete | 2026-03-31 |
 | 2. RAG Ask Delivery | 0/TBD | Not started | - |
 | 3. Security Hardening | 0/TBD | Not started | - |
 | 4. Transport Determinism | 0/TBD | Not started | - |
