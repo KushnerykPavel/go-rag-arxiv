@@ -7,7 +7,7 @@
 
 ### RAG Answering
 
-- [ ] **RAG-01**: User can call `Ask` over gRPC with a natural-language question and receive an answer payload.
+- [x] **RAG-01**: User can call `Ask` over gRPC with a natural-language question and receive an answer payload.
 - [ ] **RAG-02**: `Ask` retrieves relevant arXiv papers before generating the response.
 - [ ] **RAG-03**: `Ask` returns citations (paper identifiers/titles/links) for answer traceability.
 
@@ -49,7 +49,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RAG-01 | Phase 2 | Pending |
+| RAG-01 | Phase 2 | Complete |
 | RAG-02 | Phase 2 | Pending |
 | RAG-03 | Phase 2 | Pending |
 | APC-01 | Phase 1 | Pending |
