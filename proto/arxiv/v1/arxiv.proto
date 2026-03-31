@@ -8,6 +8,8 @@ option go_package = "github.com/KushnerykPavel/go-rag-arxiv/gen/arxiv/v1;arxivv1
 service ArxivService {
   // Search retrieves relevant ArXiv papers for a given query.
   rpc Search(SearchRequest) returns (SearchResponse);
+  // Ask retrieves an answer grounded in relevant ArXiv papers.
+  rpc Ask(AskRequest) returns (AskResponse);
 }
 
 message SearchRequest {
@@ -25,4 +27,20 @@ message Paper {
 
 message SearchResponse {
   repeated Paper papers = 1;
+}
+
+message AskRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message Citation {
+  string id = 1;
+  string title = 2;
+  string url = 3;
+}
+
+message AskResponse {
+  string answer = 1;
+  repeated Citation citations = 2;
 }
