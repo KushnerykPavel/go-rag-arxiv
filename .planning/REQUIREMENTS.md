@@ -1,72 +1,46 @@
-# Requirements: go-rag-arxiv
+# Requirements: Arxiv Survey Filter
 
 **Defined:** 2026-03-31
-**Core Value:** Deliver relevant arXiv paper discovery and notifications reliably, with a clear path to answer-generation over retrieved papers.
+**Core Value:** Only survey/review articles from the chosen arXiv categories reach the Telegram channel.
 
 ## v1 Requirements
 
-### RAG Answering
+### Filtering
 
-- [x] **RAG-01**: User can call `Ask` over gRPC with a natural-language question and receive an answer payload.
-- [ ] **RAG-02**: `Ask` retrieves relevant arXiv papers before generating the response.
-- [ ] **RAG-03**: `Ask` returns citations (paper identifiers/titles/links) for answer traceability.
-
-### API Contract & Config
-
-- [ ] **APC-01**: gRPC proto contract and server implementation remain aligned (no declared-but-unimplemented public RPCs).
-- [ ] **APC-02**: Runtime env configuration matches actual usage (no required secrets that are unused).
-- [ ] **APC-03**: gRPC errors are mapped to clear, stable status codes for validation and downstream failures.
-
-### Reliability & Testing
-
-- [ ] **REL-01**: Transport-layer behavior is covered by deterministic tests (`Search`, `Ask`, validation, and error mapping).
-- [ ] **REL-02**: Scheduler/notification workflow is covered by deterministic tests for execution and failure handling.
-- [ ] **REL-03**: External client behavior (arXiv/Telegram) has deterministic tests for retry/non-200/error paths.
-
-### Security & Operations
-
-- [ ] **OPS-01**: gRPC traffic can be served with TLS in production-ready configuration.
-- [ ] **OPS-02**: Service access controls are defined for exposed endpoints (bind policy and/or auth middleware/interceptor).
-- [ ] **OPS-03**: Notification formatting safely escapes dynamic content before delivery.
+- [ ] **FILT-01**: Paper is eligible only if its arXiv category is in the configured topic list (`cs.AI`, `cs.CL`)
+- [ ] **FILT-02**: Paper is eligible only if any survey keyword matches case-insensitive in title or abstract
+- [ ] **FILT-03**: Survey keyword list is fixed and includes the provided phrases (e.g., "survey", "review", "state of the art", "taxonomy")
+- [ ] **FILT-04**: Only eligible papers are sent to the Telegram channel
+- [ ] **FILT-05**: Message format for eligible papers remains unchanged from current output
 
 ## v2 Requirements
 
-### Product Expansion
-
-- **EXP-01**: Add user-facing filtering/preferences for scheduled topics and alert formats.
-- **EXP-02**: Add distributed coordination for scheduler execution in multi-instance deployments.
-- **EXP-03**: Move PDF cache/index from local disk to shared storage for horizontal scaling.
+(None yet — no deferred scope defined)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Web frontend/dashboard | Current milestone focuses on backend correctness and API capabilities |
-| Multi-tenant accounts and RBAC | Not required for current single-tenant Telegram workflow |
-| Mobile clients | Not needed before backend API and RAG path are stable |
+| Cryptography category expansion (e.g., `cs.CR`) | Not requested for v1 |
+| Non-survey papers in target categories | Explicitly excluded |
+| Additional sources beyond arXiv | arXiv API only |
+| UI/dashboard for managing filters | Not required for v1 |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RAG-01 | Phase 2 | Complete |
-| RAG-02 | Phase 2 | Pending |
-| RAG-03 | Phase 2 | Pending |
-| APC-01 | Phase 1 | Pending |
-| APC-02 | Phase 1 | Pending |
-| APC-03 | Phase 2 | Pending |
-| REL-01 | Phase 4 | Pending |
-| REL-02 | Phase 5 | Pending |
-| REL-03 | Phase 5 | Pending |
-| OPS-01 | Phase 3 | Pending |
-| OPS-02 | Phase 3 | Pending |
-| OPS-03 | Phase 3 | Pending |
+| FILT-01 | Phase 1 | Pending |
+| FILT-02 | Phase 1 | Pending |
+| FILT-03 | Phase 1 | Pending |
+| FILT-04 | Phase 1 | Pending |
+| FILT-05 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 12 total
-- Mapped to phases: 12
+- v1 requirements: 5 total
+- Mapped to phases: 5
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-31*
-*Last updated: 2026-03-31 after roadmap phase mapping*
+*Last updated: 2026-03-31 after initial definition*
