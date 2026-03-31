@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -20,6 +21,9 @@ func main() {
 	err := envconfig.Process("arxiv-rag-go", &cfg)
 	if err != nil {
 		log.Fatal(err.Error())
+	}
+	if err := cfg.Validate(); err != nil {
+		log.Fatal(fmt.Errorf("validating runtime config: %w", err).Error())
 	}
 
 	config := zap.NewProductionConfig()

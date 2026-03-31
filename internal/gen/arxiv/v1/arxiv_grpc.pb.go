@@ -20,7 +20,6 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	ArxivService_Search_FullMethodName = "/arxiv.v1.ArxivService/Search"
-	ArxivService_Ask_FullMethodName    = "/arxiv.v1.ArxivService/Ask"
 )
 
 // ArxivServiceClient is the client API for ArxivService service.
@@ -31,8 +30,6 @@ const (
 type ArxivServiceClient interface {
 	// Search retrieves relevant ArXiv papers for a given query.
 	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
-	// Ask answers a question using retrieved ArXiv papers as context.
-	Ask(ctx context.Context, in *AskRequest, opts ...grpc.CallOption) (*AskResponse, error)
 }
 
 type arxivServiceClient struct {
@@ -53,16 +50,6 @@ func (c *arxivServiceClient) Search(ctx context.Context, in *SearchRequest, opts
 	return out, nil
 }
 
-func (c *arxivServiceClient) Ask(ctx context.Context, in *AskRequest, opts ...grpc.CallOption) (*AskResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AskResponse)
-	err := c.cc.Invoke(ctx, ArxivService_Ask_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ArxivServiceServer is the server API for ArxivService service.
 // All implementations must embed UnimplementedArxivServiceServer
 // for forward compatibility.
@@ -71,8 +58,6 @@ func (c *arxivServiceClient) Ask(ctx context.Context, in *AskRequest, opts ...gr
 type ArxivServiceServer interface {
 	// Search retrieves relevant ArXiv papers for a given query.
 	Search(context.Context, *SearchRequest) (*SearchResponse, error)
-	// Ask answers a question using retrieved ArXiv papers as context.
-	Ask(context.Context, *AskRequest) (*AskResponse, error)
 	mustEmbedUnimplementedArxivServiceServer()
 }
 
@@ -85,9 +70,6 @@ type UnimplementedArxivServiceServer struct{}
 
 func (UnimplementedArxivServiceServer) Search(context.Context, *SearchRequest) (*SearchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Search not implemented")
-}
-func (UnimplementedArxivServiceServer) Ask(context.Context, *AskRequest) (*AskResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Ask not implemented")
 }
 func (UnimplementedArxivServiceServer) mustEmbedUnimplementedArxivServiceServer() {}
 func (UnimplementedArxivServiceServer) testEmbeddedByValue()                      {}
@@ -128,24 +110,6 @@ func _ArxivService_Search_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ArxivService_Ask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AskRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ArxivServiceServer).Ask(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ArxivService_Ask_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ArxivServiceServer).Ask(ctx, req.(*AskRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ArxivService_ServiceDesc is the grpc.ServiceDesc for ArxivService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -156,10 +120,6 @@ var ArxivService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Search",
 			Handler:    _ArxivService_Search_Handler,
-		},
-		{
-			MethodName: "Ask",
-			Handler:    _ArxivService_Ask_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
