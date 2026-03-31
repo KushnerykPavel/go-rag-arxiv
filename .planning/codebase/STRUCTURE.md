@@ -4,134 +4,128 @@
 
 ## Directory Layout
 
-```text
-go-rag-arxiv/
-├── main/                  # Executable entrypoint package
-├── internal/
-│   ├── app/               # Application composition root and runtime config
-│   ├── client/
-│   │   ├── arxiv/         # arXiv API client, models, and options
-│   │   └── telegram/      # Telegram Bot API client and options
-│   ├── cron/              # Scheduled workflow jobs
-│   ├── server/grpc/       # gRPC transport handlers
-│   ├── wrappers/          # Shared utility wrappers (rate limiting)
-│   └── gen/arxiv/v1/      # Generated protobuf/go-grpc code
-├── proto/arxiv/v1/        # Source protobuf contracts
-├── .planning/codebase/    # Mapper output documents
-├── Dockerfile             # Multi-stage container build
-├── docker-compose.yml     # Local service run definition
-├── go.mod                 # Go module and dependency definitions
-├── buf.yaml               # Proto lint/breaking config
-└── buf.gen.yaml           # Proto generation config targeting internal/gen
+```
+[project-root]/
+├── main/             # Binary entrypoint
+├── internal/         # Application code (non-exported)
+├── proto/            # Protobuf definitions
+├── vendor/           # Vendored dependencies
+├── go.mod            # Go module definition
+├── go.sum            # Go module checksums
+├── Dockerfile        # Container build
+├── docker-compose.yml# Local orchestration
+├── buf.yaml          # Protobuf tooling config
+└── buf.gen.yaml      # Protobuf generation config
 ```
 
 ## Directory Purposes
 
-**`main/`:**
-- Purpose: Host executable startup package.
-- Contains: `main/main.go`.
-- Key files: `main/main.go` (env config, logger, signal handling, `app.Run` invocation).
+**main:**
+- Purpose: Application entrypoint and process lifecycle.
+- Contains: `main/main.go`
+- Key files: `main/main.go`
 
-**`internal/app/`:**
-- Purpose: Central runtime assembly and lifecycle coordination.
-- Contains: App container, environment-backed config structs.
-- Key files: `internal/app/app.go`, `internal/app/config.go`.
+**internal:**
+- Purpose: All application modules and adapters.
+- Contains: app wiring, server handlers, domain logic, clients, cron jobs, wrappers, generated code.
+- Key files: `internal/app/app.go`, `internal/server/grpc/arxiv.go`, `internal/rag/ask_pipeline.go`
 
-**`internal/client/arxiv/`:**
-- Purpose: External arXiv integration and parsing.
-- Contains: HTTP client, option pattern config, XML parsing helpers, `Paper` model.
-- Key files: `internal/client/arxiv/client.go`, `internal/client/arxiv/config.go`, `internal/client/arxiv/paper.go`, `internal/client/arxiv/client_test.go`.
+**internal/app:**
+- Purpose: Dependency wiring and lifecycle orchestration.
+- Contains: `internal/app/app.go`, `internal/app/config.go`
+- Key files: `internal/app/app.go`, `internal/app/config.go`
 
-**`internal/client/telegram/`:**
-- Purpose: Outbound Telegram notifications.
-- Contains: HTTP bot client and option pattern config.
-- Key files: `internal/client/telegram/client.go`, `internal/client/telegram/config.go`.
+**internal/server/grpc:**
+- Purpose: gRPC transport handlers and proto mapping.
+- Contains: `internal/server/grpc/arxiv.go`
+- Key files: `internal/server/grpc/arxiv.go`
 
-**`internal/cron/`:**
-- Purpose: Scheduled business workflow.
-- Contains: `ArxivFetcher` job that queries papers and sends notifications.
-- Key files: `internal/cron/arxiv_fetcher.go`.
+**internal/rag:**
+- Purpose: RAG ask pipeline and error semantics.
+- Contains: `internal/rag/ask_pipeline.go`
+- Key files: `internal/rag/ask_pipeline.go`
 
-**`internal/server/grpc/`:**
-- Purpose: Inbound gRPC request handling.
-- Contains: `ArxivHandler` implementation for service methods.
-- Key files: `internal/server/grpc/arxiv.go`.
+**internal/client:**
+- Purpose: External API clients (arXiv, Groq, Telegram).
+- Contains: `internal/client/arxiv/*`, `internal/client/groq/*`, `internal/client/telegram/*`
+- Key files: `internal/client/arxiv/client.go`, `internal/client/groq/client.go`, `internal/client/telegram/client.go`
 
-**`internal/gen/arxiv/v1/`:**
-- Purpose: Generated code from protobuf definitions.
-- Contains: gRPC and protobuf generated files.
-- Key files: `internal/gen/arxiv/v1/arxiv.pb.go`, `internal/gen/arxiv/v1/arxiv_grpc.pb.go`.
+**internal/cron:**
+- Purpose: Scheduled jobs.
+- Contains: `internal/cron/arxiv_fetcher.go`
+- Key files: `internal/cron/arxiv_fetcher.go`
 
-**`proto/arxiv/v1/`:**
-- Purpose: Source-of-truth API contract definitions.
-- Contains: Service and message declarations.
-- Key files: `proto/arxiv/v1/arxiv.proto`.
+**internal/wrappers:**
+- Purpose: Shared utilities and wrappers.
+- Contains: `internal/wrappers/ratelimit.go`
+- Key files: `internal/wrappers/ratelimit.go`
+
+**internal/gen:**
+- Purpose: Generated protobuf and gRPC code.
+- Contains: `internal/gen/arxiv/v1/arxiv.pb.go`, `internal/gen/arxiv/v1/arxiv_grpc.pb.go`
+- Key files: `internal/gen/arxiv/v1/arxiv.pb.go`, `internal/gen/arxiv/v1/arxiv_grpc.pb.go`
+
+**proto:**
+- Purpose: Protobuf source definitions.
+- Contains: `proto/arxiv/v1/arxiv.proto`
+- Key files: `proto/arxiv/v1/arxiv.proto`
 
 ## Key File Locations
 
 **Entry Points:**
-- `main/main.go`: Process bootstrap and lifecycle root.
-- `internal/app/app.go`: Runtime entry for HTTP server, gRPC server, scheduler.
+- `main/main.go`: Process entrypoint.
 
 **Configuration:**
-- `internal/app/config.go`: App runtime env-config schema (`ADDRESS`, `GRPC_ADDRESS`, Telegram token/chat ID, Groq key).
-- `buf.yaml`: Proto lint and breaking-change policy.
-- `buf.gen.yaml`: Proto generation targets (`internal/gen`).
-- `Dockerfile`: Build/runtime packaging.
-- `docker-compose.yml`: Container runtime wiring via `.env` file reference.
-- `.env.example`: Example environment variable shape.
-- `.env`: Present (environment configuration; do not commit secrets).
+- `internal/app/config.go`: Runtime config and validation.
+- `buf.yaml`: Protobuf configuration.
+- `buf.gen.yaml`: Protobuf generation configuration.
+- `docker-compose.yml`: Local service orchestration.
 
 **Core Logic:**
-- `internal/cron/arxiv_fetcher.go`: Scheduled fetch + notify loop.
-- `internal/server/grpc/arxiv.go`: gRPC `Search` method behavior.
-- `internal/client/arxiv/client.go`: arXiv query execution, XML parsing, PDF download/cache.
-- `internal/client/telegram/client.go`: Telegram message delivery.
-- `internal/wrappers/ratelimit.go`: Reusable throttling wrapper.
+- `internal/app/app.go`: Application wiring and lifecycle.
+- `internal/rag/ask_pipeline.go`: RAG ask pipeline.
+- `internal/server/grpc/arxiv.go`: gRPC API handlers.
 
 **Testing:**
-- `internal/client/arxiv/client_test.go`: Current test location/pattern.
+- `internal/app/config_test.go`
+- `internal/app/startup_validation_test.go`
+- `internal/client/arxiv/client_test.go`
+- `internal/server/grpc/arxiv_ask_test.go`
+- `internal/server/grpc/arxiv_contract_test.go`
 
 ## Naming Conventions
 
 **Files:**
-- Lowercase snake_case for multiword files: `arxiv_fetcher.go`.
-- Package-aligned simple names for core files: `client.go`, `config.go`, `app.go`.
-- Generated protobuf files follow plugin convention: `*.pb.go`, `*_grpc.pb.go` in `internal/gen/arxiv/v1/`.
+- Go source files use `lower_snake_case.go` (e.g., `internal/cron/arxiv_fetcher.go`).
+- Test files use `*_test.go` (e.g., `internal/client/arxiv/client_test.go`).
+- Protobuf files use `lower_snake_case.proto` (e.g., `proto/arxiv/v1/arxiv.proto`).
 
 **Directories:**
-- Domain-first package grouping under `internal/` (`app`, `client`, `cron`, `server`, `wrappers`, `gen`).
-- Transport subtype as nested directory: `internal/server/grpc/`.
-- API versioning in contract paths: `proto/arxiv/v1/` and mirrored `internal/gen/arxiv/v1/`.
+- Go packages use lowercase directory names (e.g., `internal/rag`, `internal/server/grpc`).
 
 ## Where to Add New Code
 
 **New Feature:**
-- Primary code: Add orchestration in `internal/app/`; put feature logic in focused package under `internal/` (for example `internal/cron/` for scheduled jobs or `internal/server/grpc/` for RPC handlers).
-- Tests: Co-locate tests next to implementation as `*_test.go` (existing precedent: `internal/client/arxiv/client_test.go`).
+- Primary code: `internal/rag` for domain logic, `internal/server/grpc` for API exposure.
+- Tests: co-located `*_test.go` alongside new files (e.g., `internal/rag/new_feature_test.go`).
 
 **New Component/Module:**
-- Implementation: Use `internal/<component>/` with package-local `config.go` + `client.go` or equivalent constructor-centric file pattern, mirroring `internal/client/arxiv/` and `internal/client/telegram/`.
+- Implementation: `internal/<module>` with an exported constructor and internal interfaces.
 
 **Utilities:**
-- Shared helpers: Place reusable wrappers in `internal/wrappers/` when cross-package and non-domain-specific.
+- Shared helpers: `internal/wrappers`
 
 ## Special Directories
 
-**`internal/gen/`:**
-- Purpose: Generated protobuf and gRPC stubs emitted by Buf/protoc tooling.
-- Generated: Yes (configured in `buf.gen.yaml`).
-- Committed: Yes (present in repository under `internal/gen/arxiv/v1/`).
+**vendor:**
+- Purpose: Vendored Go dependencies.
+- Generated: Yes.
+- Committed: Yes.
 
-**`vendor/`:**
-- Purpose: Vendored module dependencies.
-- Generated: Yes (from `go mod vendor` workflow).
-- Committed: No (ignored via `.gitignore` entry `vendor/`).
-
-**`.planning/`:**
-- Purpose: Planning and mapper artifacts used by GSD workflow.
-- Generated: Yes (workflow-generated documents and plans).
-- Committed: Project-specific process choice; currently present in workspace.
+**internal/gen:**
+- Purpose: Generated protobuf and gRPC code.
+- Generated: Yes.
+- Committed: Yes.
 
 ---
 

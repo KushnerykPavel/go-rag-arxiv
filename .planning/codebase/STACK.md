@@ -5,78 +5,64 @@
 ## Languages
 
 **Primary:**
-- Go 1.26 - application code and build target in `go.mod`, `main/main.go`, and `internal/**/*.go`.
+- Go 1.26 - Application source in `main/main.go` and `internal/**/*.go`
 
 **Secondary:**
-- Protocol Buffers (proto3) - gRPC contract definitions in `proto/arxiv/v1/arxiv.proto`.
-- YAML - protobuf generation/lint configuration in `buf.gen.yaml` and `buf.yaml`; container orchestration config in `docker-compose.yml`.
-- Dockerfile syntax - container build/runtime definition in `Dockerfile`.
+- Protocol Buffers - Service contracts in `proto/` with generated code in `internal/gen/arxiv/v1/`
 
 ## Runtime
 
 **Environment:**
-- Go runtime, target toolchain `go 1.26` from `go.mod`.
-- Linux container runtime for production image (`FROM scratch`) in `Dockerfile`.
+- Go toolchain 1.26 (`go.mod`, `Dockerfile`)
 
 **Package Manager:**
-- Go Modules via `go.mod`/`go.sum`.
-- Lockfile: present (`go.sum`).
+- Go modules - `go.mod` / `go.sum`
+- Lockfile: present (`go.sum`)
 
 ## Frameworks
 
 **Core:**
-- `github.com/go-chi/chi/v5` (`go.mod`) - HTTP routing and middleware wiring in `internal/app/app.go`.
-- `google.golang.org/grpc` (`go.mod`) - gRPC server and generated protobuf service stubs in `internal/app/app.go`, `internal/server/grpc/arxiv.go`, `internal/gen/arxiv/v1/arxiv_grpc.pb.go`.
-- `github.com/go-co-op/gocron/v2` (`go.mod`) - scheduled daily jobs in `internal/app/app.go`.
+- `github.com/go-chi/chi/v5` v5.2.5 - HTTP routing (`internal/app/app.go`)
+- `google.golang.org/grpc` v1.79.2 - gRPC server (`internal/app/app.go`, `internal/server/grpc/arxiv.go`)
+- `github.com/go-co-op/gocron/v2` v2.19.1 - scheduled jobs (`internal/app/app.go`, `internal/cron/arxiv_fetcher.go`)
 
 **Testing:**
-- Go standard `testing` package - test file `internal/client/arxiv/client_test.go`.
+- Go standard library `testing` - tests in `internal/**/*_test.go`
 
 **Build/Dev:**
-- `buf` (configured in `buf.yaml` and `buf.gen.yaml`) - protobuf linting and Go/gRPC stub generation to `internal/gen/`.
-- Docker multi-stage build (`Dockerfile`) - reproducible binary build and minimal runtime image.
+- Buf (v2 config) - Protobuf lint/breaking/generation (`buf.yaml`, `buf.gen.yaml`)
+- `protoc-gen-go`, `protoc-gen-go-grpc` - code generation (`buf.gen.yaml`)
 
 ## Key Dependencies
 
 **Critical:**
-- `github.com/kelseyhightower/envconfig` (`go.mod`) - environment-driven config loading in `main/main.go` and struct tags in `internal/app/config.go`.
-- `go.uber.org/zap` (`go.mod`) - structured logging setup in `main/main.go` and app/client modules such as `internal/app/app.go`.
-- `golang.org/x/sync/errgroup` (`go.mod`) - coordinated goroutine lifecycle in `internal/app/app.go`.
-- `golang.org/x/time/rate` (`go.mod`) - rate limiting wrapper in `internal/wrappers/ratelimit.go`.
+- `github.com/kelseyhightower/envconfig` v1.4.0 - runtime config from env vars (`main/main.go`, `internal/app/config.go`)
+- `go.uber.org/zap` v1.27.1 - structured logging (`main/main.go`, `internal/app/app.go`)
+- `golang.org/x/sync` v0.19.0 - errgroup for concurrency (`internal/app/app.go`)
+- `golang.org/x/time` v0.14.0 - rate limiting utilities (`internal/wrappers/ratelimit.go`)
 
 **Infrastructure:**
-- `google.golang.org/protobuf` (`go.mod`) - protobuf runtime used by generated code in `internal/gen/arxiv/v1/arxiv.pb.go`.
-- Standard library `net/http` - outbound API clients and inbound health endpoint in `internal/client/arxiv/client.go`, `internal/client/telegram/client.go`, and `internal/app/app.go`.
+- `google.golang.org/protobuf` v1.36.11 - protobuf runtime (`internal/gen/arxiv/v1/arxiv.pb.go`)
 
 ## Configuration
 
 **Environment:**
-- App config is loaded via `envconfig.Process("arxiv-rag-go", &cfg)` in `main/main.go`.
-- Required/optional variables are declared in `internal/app/config.go`:
-- `ADDRESS` (default `:8080`)
-- `GRPC_ADDRESS` (default `:9090`)
-- `GROQ_API_KEY` (required by config; no current call site found in `internal/**/*.go`)
-- `TELEGRAM_TOKEN` (required)
-- `TELEGRAM_CHAT_ID` (required)
-- `.env.example` is present at repository root; contents intentionally not read.
-- Docker Compose references an env file (`env_file: .env`) and port mapping in `docker-compose.yml`.
+- Env vars via `envconfig.Process("arxiv-rag-go", &cfg)` (`main/main.go`)
+- Example env file: `.env.example` (used by `docker-compose.yml` via `env_file: .env`)
+- Required runtime keys validated in `internal/app/config.go`
 
 **Build:**
-- Protobuf build config files: `buf.yaml`, `buf.gen.yaml`.
-- Container build config file: `Dockerfile`.
-- Go module/build metadata: `go.mod`, `go.sum`.
+- Docker multi-stage build (`Dockerfile`)
+- Protobuf build configs (`buf.yaml`, `buf.gen.yaml`)
 
 ## Platform Requirements
 
 **Development:**
-- Go 1.26 toolchain (`go.mod`).
-- `buf` CLI for lint/generation workflows referenced in `CLAUDE.md` and configured in `buf.yaml`/`buf.gen.yaml`.
-- Network access required for outbound HTTPS integrations used in `internal/client/arxiv/client.go` and `internal/client/telegram/client.go`.
+- Go 1.26 toolchain
+- Buf + protobuf plugins if regenerating gRPC code (`buf.gen.yaml`)
 
 **Production:**
-- Container-capable environment that can run the image built from `Dockerfile`.
-- HTTPS trust store is required and embedded by copying CA certs in `Dockerfile`.
-- Exposed HTTP health port and gRPC port configured by `ADDRESS`/`GRPC_ADDRESS` in `internal/app/config.go`.
+- Container image built from `Dockerfile` (scratch + CA certs)
 
 ---
 

@@ -5,153 +5,131 @@
 ## Test Framework
 
 **Runner:**
-- Go standard test runner (`go test`) from Go toolchain aligned to `go 1.26` in `go.mod`.
-- Config: No dedicated test config file detected (`jest.config.*`, `vitest.config.*`, or Go-specific third-party config not present).
+- Go standard `testing` package (used in all tests such as `internal/app/config_test.go`, `internal/server/grpc/arxiv_ask_test.go`).
+- Config: Not detected (no `go test` config files).
 
 **Assertion Library:**
-- Go standard `testing` package only (`testing.T` in `internal/client/arxiv/client_test.go`).
-- No `testify`, `gomega`, or other assertion helper library imports detected.
+- Standard `testing` assertions via `t.Fatalf`, `t.Fatal` in `internal/app/config_test.go`, `internal/server/grpc/arxiv_ask_test.go`.
 
 **Run Commands:**
 ```bash
-go test ./...                                  # Run all tests
-go test ./... -run TestClient -count=1         # Run specific test without cache
-go test ./... -cover                           # Package-level coverage summary
+go test ./...          # Run all tests (documented in `CLAUDE.md`)
 ```
 
 ## Test File Organization
 
 **Location:**
-- Co-located tests next to implementation package.
-- Current example: `internal/client/arxiv/client_test.go` sits beside `internal/client/arxiv/client.go`.
+- Co-located with implementation packages under `internal/...` (e.g., `internal/app/config_test.go`, `internal/server/grpc/arxiv_ask_test.go`).
 
 **Naming:**
-- Test files follow Go convention: `*_test.go` (`internal/client/arxiv/client_test.go`).
-- Test functions use `TestXxx` naming (`TestClient` in `internal/client/arxiv/client_test.go`).
+- `_test.go` suffix (e.g., `internal/client/arxiv/client_test.go`).
 
 **Structure:**
-```text
-internal/
-  client/
-    arxiv/
-      client.go
-      client_test.go
+```
+internal/app/*_test.go
+internal/client/arxiv/*_test.go
+internal/server/grpc/*_test.go
 ```
 
 ## Test Structure
 
 **Suite Organization:**
-```typescript
-// Go example from `internal/client/arxiv/client_test.go`
-func TestClient(t *testing.T) {
-    l := zap.NewNop().Sugar()
-    client := arxiv.NewClient(l)
-    papers, _ := client.FetchPapers(context.Background(), arxiv.FetchParams{
-        SearchCategory: "cs.AI",
-        FromDate:       time.Now().UTC().Add(-24 * time.Hour).Format(arxiv.TimeFormat),
-        ToDate:         time.Now().UTC().Format(arxiv.TimeFormat),
-    })
+```go
+tests := []struct {
+	name    string
+	cfg     Config
+	wantErr string
+}{
+	{name: "passes when groq and telegram values are set", cfg: Config{GroqAPIKey: "groq-key"}},
+}
 
-    for _, paper := range papers {
-        fmt.Printf("ID: %s ...\n", paper.ArxivID)
-    }
+for _, tt := range tests {
+	tt := tt
+	t.Run(tt.name, func(t *testing.T) {
+		t.Parallel()
+		err := tt.cfg.Validate()
+		if tt.wantErr == "" && err != nil {
+			t.Fatalf("Validate() error = %v, want nil", err)
+		}
+	})
 }
 ```
 
 **Patterns:**
-- Setup pattern:
-- Instantiate a no-op logger (`zap.NewNop().Sugar()`) to avoid noisy logs in tests in `internal/client/arxiv/client_test.go`.
-- Construct real client via production constructor (`arxiv.NewClient`) in `internal/client/arxiv/client_test.go`.
-- Teardown pattern:
-- No explicit teardown or cleanup currently used.
-- Assertion pattern:
-- No assertions currently used (`papers, _ := ...` ignores errors; loop prints values) in `internal/client/arxiv/client_test.go`.
+- Table-driven subtests with `t.Run` and per-case parallelization in `internal/app/config_test.go`.
+- Non-parallel subtests when shared state is used in `internal/server/grpc/arxiv_ask_test.go`.
+- Validation of gRPC status codes and messages using `status.FromError` in `internal/server/grpc/arxiv_ask_test.go`.
 
 ## Mocking
 
-**Framework:** Not detected in current tests.
+**Framework:** None (manual fakes).
 
 **Patterns:**
-```typescript
-// No mocking pattern is currently implemented in test files.
-// Existing production code uses interfaces that can support manual fakes:
-// `fetcher` and `notifier` in `internal/cron/arxiv_fetcher.go`
-// `paperFetcher` in `internal/server/grpc/arxiv.go`
+```go
+type fakeAskService struct {
+	askFn func(ctx context.Context, req rag.AskRequest) (rag.AskResult, error)
+}
+
+func (f fakeAskService) Ask(ctx context.Context, req rag.AskRequest) (rag.AskResult, error) {
+	return f.askFn(ctx, req)
+}
 ```
 
 **What to Mock:**
-- External network boundaries should be mocked in new tests:
-- arXiv HTTP interactions in `internal/client/arxiv/client.go` (use `WithHTTPClient` from `internal/client/arxiv/config.go`).
-- Telegram Bot API calls in `internal/client/telegram/client.go` (use `WithHTTPClient` from `internal/client/telegram/config.go`).
-- Scheduler-triggered notifier/fetcher dependencies in `internal/cron/arxiv_fetcher.go` (replace interfaces with fakes).
+- External service interfaces defined at point-of-use (e.g., `askService` in `internal/server/grpc/arxiv.go`, mocked by `fakeAskService` in `internal/server/grpc/arxiv_ask_test.go`).
 
 **What NOT to Mock:**
-- Pure transformation helpers in `internal/client/arxiv/client.go` (`extractArxivID`, `cleanText`, `toProtoPaper` indirectly via handler output).
-- Value structs/config parsing logic in `internal/app/config.go` where direct deterministic checks are feasible.
+- Pure config validation logic in `internal/app/config.go` is tested directly in `internal/app/config_test.go`.
 
 ## Fixtures and Factories
 
 **Test Data:**
-```typescript
-// Current pattern uses dynamic time window values:
-arxiv.FetchParams{
-    SearchCategory: "cs.AI",
-    FromDate: time.Now().UTC().Add(-24 * time.Hour).Format(arxiv.TimeFormat),
-    ToDate:   time.Now().UTC().Format(arxiv.TimeFormat),
+```go
+cfg := Config{
+	GroqAPIKey: "groq-key",
+	TelegramConfig: TelegramConfig{
+		Token:  "token",
+		ChatID: 12345,
+	},
 }
 ```
 
 **Location:**
-- No shared fixture/factory package detected.
-- Inline setup only in `internal/client/arxiv/client_test.go`.
+- Inline within tests; no shared fixture directory detected in `internal/...`.
 
 ## Coverage
 
-**Requirements:** None enforced by config or CI files in this repository.
-
-**Observed current state (from `go test ./... -cover`):**
-- `internal/client/arxiv`: 46.7%
-- `internal/app`: 0.0%
-- `internal/client/telegram`: 0.0%
-- `internal/cron`: 0.0%
-- `internal/server/grpc`: 0.0%
-- `internal/wrappers`: 0.0%
+**Requirements:** Not enforced (no coverage tooling/config detected).
 
 **View Coverage:**
 ```bash
-go test ./... -cover
-go test ./... -coverprofile=coverage.out && go tool cover -func=coverage.out
+Not detected
 ```
 
 ## Test Types
 
 **Unit Tests:**
-- Minimal unit coverage exists only for `internal/client/arxiv` package (`internal/client/arxiv/client_test.go`).
-- Current test behaves like a smoke/integration probe because it performs real fetch calls through the live client path.
+- Config validation (`internal/app/config_test.go`).
+- gRPC handler error mapping (`internal/server/grpc/arxiv_ask_test.go`).
+- gRPC contract checks on service descriptors (`internal/server/grpc/arxiv_contract_test.go`).
 
 **Integration Tests:**
-- No dedicated integration test suite folder or tagging strategy detected.
-- Existing `TestClient` in `internal/client/arxiv/client_test.go` effectively exercises external arXiv API behavior.
+- Direct arXiv API calls without assertions in `internal/client/arxiv/client_test.go`.
 
 **E2E Tests:**
-- Not used (no E2E framework, harness, or workflow files detected).
+- Not used.
 
 ## Common Patterns
 
 **Async Testing:**
-```typescript
-// No async-specific testing helpers or patterns are currently implemented.
-// Production code uses context cancellation and goroutines in:
-// `main/main.go` and `internal/app/app.go`.
+```go
+t.Parallel()
 ```
 
 **Error Testing:**
-```typescript
-// No explicit error-path assertions are currently implemented.
-// New tests should check returned errors instead of discarding them:
-papers, err := client.FetchPapers(ctx, params)
-if err != nil {
-    t.Fatalf("FetchPapers failed: %v", err)
+```go
+if err == nil {
+	t.Fatalf("expected error")
 }
 ```
 
