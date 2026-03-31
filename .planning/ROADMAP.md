@@ -26,7 +26,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The survey keyword list is fixed and includes the provided phrases (e.g., "survey", "review", "state of the art", "taxonomy").
   4. Telegram receives only eligible papers.
   5. Message formatting for eligible papers is unchanged from current output.
-**Plans**: TBD
+**Plans**: 1 plans
+
+Plans:
+- [ ] 01-survey-filter-delivery-01-PLAN.md — Add survey eligibility filter with fixed keywords and tests in cron fetch flow
 
 ## Progress
 
