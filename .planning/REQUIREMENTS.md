@@ -49,24 +49,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RAG-01 | Phase TBD | Pending |
-| RAG-02 | Phase TBD | Pending |
-| RAG-03 | Phase TBD | Pending |
-| APC-01 | Phase TBD | Pending |
-| APC-02 | Phase TBD | Pending |
-| APC-03 | Phase TBD | Pending |
-| REL-01 | Phase TBD | Pending |
-| REL-02 | Phase TBD | Pending |
-| REL-03 | Phase TBD | Pending |
-| OPS-01 | Phase TBD | Pending |
-| OPS-02 | Phase TBD | Pending |
-| OPS-03 | Phase TBD | Pending |
+| RAG-01 | Phase 2 | Pending |
+| RAG-02 | Phase 2 | Pending |
+| RAG-03 | Phase 2 | Pending |
+| APC-01 | Phase 1 | Pending |
+| APC-02 | Phase 1 | Pending |
+| APC-03 | Phase 2 | Pending |
+| REL-01 | Phase 4 | Pending |
+| REL-02 | Phase 5 | Pending |
+| REL-03 | Phase 5 | Pending |
+| OPS-01 | Phase 3 | Pending |
+| OPS-02 | Phase 3 | Pending |
+| OPS-03 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12 ⚠️
+- Mapped to phases: 12
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-31*
-*Last updated: 2026-03-31 after initial definition*
+*Last updated: 2026-03-31 after roadmap phase mapping*
