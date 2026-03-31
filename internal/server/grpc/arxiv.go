@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -9,22 +10,29 @@ import (
 
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/client/arxiv"
 	arxivv1 "github.com/KushnerykPavel/go-rag-arxiv/internal/gen/arxiv/v1"
+	"github.com/KushnerykPavel/go-rag-arxiv/internal/rag"
 )
 
 type paperFetcher interface {
 	FetchPapersWithQuery(ctx context.Context, query string, params arxiv.FetchParams) ([]arxiv.Paper, error)
 }
 
+type askService interface {
+	Ask(ctx context.Context, req rag.AskRequest) (rag.AskResult, error)
+}
+
 // ArxivHandler implements arxivv1.ArxivServiceServer.
 type ArxivHandler struct {
 	arxivv1.UnimplementedArxivServiceServer
 	fetcher paperFetcher
+	asker   askService
 	l       *zap.SugaredLogger
 }
 
-func NewArxivHandler(fetcher paperFetcher, l *zap.SugaredLogger) *ArxivHandler {
+func NewArxivHandler(fetcher paperFetcher, asker askService, l *zap.SugaredLogger) *ArxivHandler {
 	return &ArxivHandler{
 		fetcher: fetcher,
+		asker:   asker,
 		l:       l.With("server", "grpc", "handler", "arxiv"),
 	}
 }
@@ -54,6 +62,49 @@ func (h *ArxivHandler) Search(ctx context.Context, req *arxivv1.SearchRequest) (
 		resp.Papers = append(resp.Papers, toProtoPaper(p))
 	}
 	return resp, nil
+}
+
+func (h *ArxivHandler) Ask(ctx context.Context, req *arxivv1.AskRequest) (*arxivv1.AskResponse, error) {
+	result, err := h.asker.Ask(ctx, rag.AskRequest{
+		Query: req.GetQuery(),
+		Limit: req.GetLimit(),
+	})
+	if err != nil {
+		code := mapAskErrorCode(err)
+		h.l.Errorw("ask failed", "query", req.GetQuery(), "code", code.String(), "error", err)
+		return nil, status.Errorf(code, "ask failed: %v", err)
+	}
+
+	resp := &arxivv1.AskResponse{
+		Answer:    result.Answer,
+		Citations: make([]*arxivv1.Citation, 0, len(result.Citations)),
+	}
+	for _, c := range result.Citations {
+		resp.Citations = append(resp.Citations, &arxivv1.Citation{
+			Id:    c.ID,
+			Title: c.Title,
+			Url:   c.URL,
+		})
+	}
+
+	return resp, nil
+}
+
+func mapAskErrorCode(err error) codes.Code {
+	switch {
+	case errors.Is(err, rag.ErrAskInvalidInput):
+		return codes.InvalidArgument
+	case errors.Is(err, rag.ErrAskEmptyRetrieval):
+		return codes.NotFound
+	case errors.Is(err, context.DeadlineExceeded):
+		return codes.DeadlineExceeded
+	case errors.Is(err, rag.ErrAskRateLimited):
+		return codes.ResourceExhausted
+	case errors.Is(err, rag.ErrAskUpstreamUnavailable):
+		return codes.Unavailable
+	default:
+		return codes.Internal
+	}
 }
 
 func toProtoPaper(p arxiv.Paper) *arxivv1.Paper {

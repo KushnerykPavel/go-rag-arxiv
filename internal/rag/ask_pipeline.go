@@ -76,6 +76,9 @@ func (s *AskService) Ask(ctx context.Context, req AskRequest) (AskResult, error)
 		MaxResults: int(limit),
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return AskResult{}, fmt.Errorf("retrieval timeout: %w", context.DeadlineExceeded)
+		}
 		return AskResult{}, fmt.Errorf("%w: retrieval failed: %v", ErrAskUpstreamUnavailable, err)
 	}
 	if len(papers) == 0 {
@@ -108,14 +111,14 @@ func classifyGenerationError(err error) error {
 	if errors.As(err, &codeErr) {
 		switch codeErr.StatusCode() {
 		case 429:
-			return fmt.Errorf("%w: %v", ErrAskRateLimited, err)
+			return errors.Join(ErrAskRateLimited, err)
 		case 502, 503, 504:
-			return fmt.Errorf("%w: %v", ErrAskUpstreamUnavailable, err)
+			return errors.Join(ErrAskUpstreamUnavailable, err)
 		}
 	}
 
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return fmt.Errorf("%w: %v", ErrAskUpstreamUnavailable, err)
+		return fmt.Errorf("generation timeout: %w", context.DeadlineExceeded)
 	}
 
 	return fmt.Errorf("%w: %v", ErrAskUpstreamUnavailable, err)

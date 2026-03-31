@@ -11,9 +11,9 @@ func TestConfigValidation(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "passes when telegram values are set and groq key is empty",
+			name: "passes when groq and telegram values are set",
 			cfg: Config{
-				GroqAPIKey: "",
+				GroqAPIKey: "groq-key",
 				TelegramConfig: TelegramConfig{
 					Token:  "token",
 					ChatID: 12345,
@@ -21,8 +21,19 @@ func TestConfigValidation(t *testing.T) {
 			},
 		},
 		{
+			name: "fails when groq key is missing",
+			cfg: Config{
+				TelegramConfig: TelegramConfig{
+					Token:  "token",
+					ChatID: 12345,
+				},
+			},
+			wantErr: "missing required runtime config: GROQ_API_KEY",
+		},
+		{
 			name: "fails when telegram token is missing",
 			cfg: Config{
+				GroqAPIKey: "groq-key",
 				TelegramConfig: TelegramConfig{
 					ChatID: 12345,
 				},
@@ -32,6 +43,7 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "fails when telegram chat id is missing",
 			cfg: Config{
+				GroqAPIKey: "groq-key",
 				TelegramConfig: TelegramConfig{
 					Token: "token",
 				},

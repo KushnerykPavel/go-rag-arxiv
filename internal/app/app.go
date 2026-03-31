@@ -16,9 +16,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/client/arxiv"
+	"github.com/KushnerykPavel/go-rag-arxiv/internal/client/groq"
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/client/telegram"
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/cron"
 	arxivv1 "github.com/KushnerykPavel/go-rag-arxiv/internal/gen/arxiv/v1"
+	"github.com/KushnerykPavel/go-rag-arxiv/internal/rag"
 	grpcserver "github.com/KushnerykPavel/go-rag-arxiv/internal/server/grpc"
 	"github.com/KushnerykPavel/go-rag-arxiv/internal/wrappers"
 )
@@ -48,6 +50,8 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	arxivClient := arxiv.NewClient(a.l)
+	groqClient := groq.NewClient(a.cfg.GroqAPIKey, a.l)
+	askService := rag.NewAskService(arxivClient, groqClient)
 	telegramClient := telegram.NewClient(a.cfg.TelegramConfig.Token, a.l)
 	arxivFetcher := cron.NewArxivFetcher(arxivClient, telegramClient, a.cfg.TelegramConfig.ChatID, a.l, arxivLimiter)
 
@@ -87,7 +91,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// gRPC server
 	grpcSrv := grpc.NewServer()
-	arxivv1.RegisterArxivServiceServer(grpcSrv, grpcserver.NewArxivHandler(arxivClient, a.l))
+	arxivv1.RegisterArxivServiceServer(grpcSrv, grpcserver.NewArxivHandler(arxivClient, askService, a.l))
 
 	errGrp.Go(func() error {
 		lis, err := net.Listen("tcp", a.cfg.GRPCAddress)

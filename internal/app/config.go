@@ -16,6 +16,10 @@ type TelegramConfig struct {
 }
 
 func (c Config) Validate() error {
+	if c.GroqAPIKey == "" {
+		return fmt.Errorf("missing required runtime config: GROQ_API_KEY")
+	}
+
 	if c.TelegramConfig.Token == "" {
 		return fmt.Errorf("missing required runtime config: TELEGRAM_TOKEN")
 	}

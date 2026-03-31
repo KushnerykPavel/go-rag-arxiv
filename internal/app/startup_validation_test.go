@@ -20,7 +20,7 @@ func TestStartupValidation(t *testing.T) {
 		t.Fatalf("startupValidate() error = %q, missing startup context", err.Error())
 	}
 
-	if !strings.Contains(err.Error(), "missing required runtime config: TELEGRAM_TOKEN") {
+	if !strings.Contains(err.Error(), "missing required runtime config: GROQ_API_KEY") {
 		t.Fatalf("startupValidate() error = %q, missing runtime key detail", err.Error())
 	}
 }
