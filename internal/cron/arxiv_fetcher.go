@@ -73,6 +73,9 @@ func (f *ArxivFetcher) FetchPapers(ctx context.Context) {
 		}
 
 		for _, paper := range papers {
+			if !isEligibleSurvey(paper, topicList, surveyKeywords) {
+				continue
+			}
 			f.sendNotification(ctx, topic, paper)
 		}
 	}
