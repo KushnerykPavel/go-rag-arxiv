@@ -1,8 +1,8 @@
 # Phase 1: Survey Filter Delivery - Research
 
 **Researched:** 2026-03-31  
-**Domain:** Go filtering logic in arXiv → Telegram cron pipeline  
-**Confidence:** MEDIUM
+**Domain:** Go cron pipeline filtering (arXiv → Telegram)  
+**Confidence:** HIGH
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
@@ -21,6 +21,9 @@
 ### the agent's Discretion
 - None — all gray areas resolved.
 
+### Claude's Discretion
+None — all gray areas resolved.
+
 ### Deferred Ideas (OUT OF SCOPE)
 None — discussion stayed within phase scope.
 </user_constraints>
@@ -30,47 +33,38 @@ None — discussion stayed within phase scope.
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| FILT-01 | Paper is eligible only if its arXiv category is in the configured topic list (`cs.AI`, `cs.CL`) | Use `paper.Categories` (parsed in `internal/client/arxiv/client.go`) and match against `topicList` in `internal/cron/arxiv_fetcher.go`. |
-| FILT-02 | Paper is eligible only if any survey keyword matches case-insensitive in title or abstract | Implement normalization + `strings.Contains` check over `paper.Title` and `paper.Abstract`. |
-| FILT-03 | Survey keyword list is fixed and includes provided phrases | Define a fixed `surveyKeywords` slice (constants) in `internal/cron` package; include required phrases. |
-| FILT-04 | Only eligible papers are sent to the Telegram channel | Gate `sendNotification` with eligibility check inside `FetchPapers`. |
-| FILT-05 | Message format for eligible papers remains unchanged from current output | Preserve `formatPaper` and SendHTML; filtering happens before sending. |
+| FILT-01 | Paper is eligible only if its arXiv category is in the configured topic list (`cs.AI`, `cs.CL`) | `topicList` is already defined in `internal/cron/arxiv_fetcher.go`; add category match against `paper.Categories` before send. |
+| FILT-02 | Paper is eligible only if any survey keyword matches case-insensitive in title or abstract | Add eligibility function using case-insensitive substring match across title + abstract. |
+| FILT-03 | Survey keyword list is fixed and includes the provided phrases (e.g., "survey", "review", "state of the art", "taxonomy") | Create fixed keyword list constant and normalization for spacing/hyphen variants. |
+| FILT-04 | Only eligible papers are sent to the Telegram channel | Apply eligibility check before `sendNotification` in `FetchPapers`. |
+| FILT-05 | Message format for eligible papers remains unchanged from current output | Preserve `formatPaper` and `sendNotification` flow unchanged; only filter before calling it. |
 </phase_requirements>
-
-## Project Constraints (from CLAUDE.md)
-- Go service; keep integration within existing cron pipeline.
-- Use functional options for client constructors and keep interfaces defined at point of use.
-- Logging via zap `SugaredLogger` (`Infow`, `Warnw`, `Errorw`).
-- Use `wrappers.RateLimiter.Do(ctx, fn)` for notification sends.
-- `arxiv.Paper.PublishedAt` is `time.Time` parsed at the API boundary.
-- Proto stubs live in `internal/gen/`; use `buf generate` when `.proto` changes.
 
 ## Summary
 
-Filtering should be added inside the existing cron fetch loop (`internal/cron/arxiv_fetcher.go`) before any Telegram send. The paper metadata already contains a normalized title and abstract, plus a list of all categories, so eligibility can be determined without changing upstream parsing or the notification formatter.
+The current pipeline fetches papers per topic (`topicList`) in `internal/cron/arxiv_fetcher.go` and sends each paper to Telegram using `formatPaper(...)` without any filtering. Eligibility checks should be inserted in `FetchPapers` before calling `sendNotification`, so formatting remains untouched while non-eligible papers are skipped.
 
-Use a small, pure eligibility function that checks category membership against `topicList` and performs case-insensitive substring matching over title/abstract with a light normalization layer to allow spacing and hyphen variants (e.g., normalize hyphens to spaces and collapse whitespace). Title-only matches are allowed if the abstract is empty. Keep `formatPaper` unchanged to satisfy formatting constraints.
+Eligibility must combine: category matching (any category in `paper.Categories` intersects with `topicList`) and keyword matching (case-insensitive substring across title + abstract, with title-only allowed when abstract is empty, and flexible hyphen/spacing variants for multi-word phrases). The arXiv client already parses `Summary` as `Abstract` and `category` XML terms into `Paper.Categories`, so eligibility can be computed without changing the arXiv client.
 
-**Primary recommendation:** Implement `isEligibleSurvey(paper arxiv.Paper, topics []string, keywords []string) bool` in `internal/cron` and gate `sendNotification` on it, using normalized case-insensitive matching with hyphen/space normalization.
+**Primary recommendation:** Add a small, testable eligibility function in `internal/cron/arxiv_fetcher.go` (or helper file) and call it from `FetchPapers` before `sendNotification`, keeping `formatPaper` unchanged.
 
 ## Standard Stack
 
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| Go stdlib (`strings`, optional `regexp`) | Go 1.26 | Case-insensitive matching and normalization | Already used throughout codebase; no new dependencies. |
-| `go.uber.org/zap` | v1.27.1 | Logging in cron fetcher | Existing logging pattern in `internal/cron/arxiv_fetcher.go`. |
-| `internal/client/arxiv` | local | Paper metadata source | Provides `Paper.Title`, `Paper.Abstract`, `Paper.Categories`. |
+| Go | 1.26 | Service runtime | Project baseline (`go.mod`). |
+| `strings` (stdlib) | — | Case-insensitive substring matching and normalization | Sufficient for required matching rules. |
 
 ### Supporting
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `internal/wrappers` | local | Rate-limited Telegram sends | Keep existing `RateLimiter.Do` usage. |
+| `go.uber.org/zap` | v1.27.1 | Logging | Use existing `SugaredLogger` in cron fetcher for skip/eligibility logs if needed. |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| `strings.Contains` on normalized strings | `regexp` per keyword | Regex adds complexity; normalization + substring is sufficient and faster. |
+| `strings` matching | `regexp` | Unnecessary complexity; substring + normalization meets requirements. |
 
 **Installation:** No new dependencies required.
 
@@ -80,75 +74,85 @@ Use a small, pure eligibility function that checks category membership against `
 ```
 internal/
   cron/
-    arxiv_fetcher.go    # add eligibility gate
-    survey_filter.go    # (optional) isolated filter helpers
+    arxiv_fetcher.go   # eligibility check inserted here
 ```
 
-### Pattern 1: Pure Eligibility Helper
-**What:** A pure function that takes `Paper` and config slices, returns `true/false`.  
-**When to use:** For all eligibility checks so filtering is testable without Telegram or network dependencies.  
+### Pattern 1: Filter Before Notification
+**What:** Compute eligibility and skip send for non-eligible papers.  
+**When to use:** Any gating logic where output formatting must remain unchanged.  
 **Example:**
 ```go
-// Source: internal/cron/arxiv_fetcher.go + internal/client/arxiv/paper.go
-func isEligibleSurvey(p arxiv.Paper, topics, keywords []string) bool {
-	if !hasAnyCategory(p.Categories, topics) {
-		return false
-	}
-	text := normalizeForMatch(p.Title)
-	if p.Abstract != "" {
-		text += " " + normalizeForMatch(p.Abstract)
-	}
-	for _, kw := range keywords {
-		if strings.Contains(text, normalizeForMatch(kw)) {
-			return true
-		}
-	}
-	return false
+// Source: internal/cron/arxiv_fetcher.go
+for _, paper := range papers {
+    if !isEligiblePaper(paper) {
+        continue
+    }
+    f.sendNotification(ctx, topic, paper)
+}
+```
+
+### Pattern 2: Normalize Text for Flexible Phrase Matching
+**What:** Lowercase + replace hyphens with spaces + collapse whitespace before substring checks.  
+**When to use:** Required for multi-word phrases with flexible spacing/hyphen variants (D-03).  
+**Example:**
+```go
+// Source: new helper in internal/cron/arxiv_fetcher.go
+func normalizeText(s string) string {
+    s = strings.ToLower(s)
+    s = strings.ReplaceAll(s, "-", " ")
+    return strings.Join(strings.Fields(s), " ")
 }
 ```
 
 ### Anti-Patterns to Avoid
-- **Filtering after sending:** Must gate before `SendHTML` to satisfy FILT-04.
-- **Primary-category-only checks:** Use `paper.Categories` (all categories) per D-04.
-- **Changing formatter:** `formatPaper` must remain unchanged per FILT-05.
+- **Filtering by `topic` only:** The fetch query topic is not sufficient for D-04; use `paper.Categories` intersection to decide eligibility.
+- **Modifying `formatPaper`:** Violates FILT-05; keep output formatting unchanged.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Complex NLP or stemming | Custom tokenizer/stemmer | Fixed keyword list + normalization | Requirement is simple substring match, not semantic search. |
+| Text normalization | Custom tokenizer | `strings.ToLower`, `strings.ReplaceAll`, `strings.Fields` | Simple, predictable behavior that matches requirements. |
 
-**Key insight:** Requirements explicitly call for fixed, case-insensitive substring matching; anything more complex risks scope creep and regressions.
+**Key insight:** The eligibility rules are narrow; avoid complex NLP or regex to keep behavior deterministic.
 
 ## Common Pitfalls
 
-### Pitfall 1: Missing Hyphen/Spacing Variants
-**What goes wrong:** `"state of the art"` fails to match `"state-of-the-art"`.  
-**Why it happens:** Direct `strings.Contains` on raw text.  
-**How to avoid:** Normalize by lowercasing, replacing hyphens with spaces, and collapsing whitespace before matching.  
-**Warning signs:** Eligible-looking papers not delivered when hyphenated phrases exist.
+### Pitfall 1: Missing Abstract Handling
+**What goes wrong:** Keyword matching fails when abstract is empty.  
+**Why it happens:** Abstract may be empty or missing; D-02 requires title-only match in that case.  
+**How to avoid:** Treat empty abstract as "title-only" input.  
+**Warning signs:** Eligible survey titles not delivered.
 
-### Pitfall 2: Category Mismatch
-**What goes wrong:** Papers with secondary category `cs.AI` are dropped.  
-**Why it happens:** Using only the fetch topic or primary category instead of full list.  
-**How to avoid:** Check `paper.Categories` for any match against `topicList`.  
-**Warning signs:** Papers fetched for a topic but filtered out without keyword issues.
+### Pitfall 2: Hyphen/Whitespace Variants Not Matched
+**What goes wrong:** "state-of-the-art" doesn't match "state of the art".  
+**Why it happens:** Direct substring match on raw text.  
+**How to avoid:** Normalize hyphens to spaces and collapse whitespace for both text and keywords.  
+**Warning signs:** Known survey phrases missing in notifications.
 
-### Pitfall 3: Abstract Empty Handling
-**What goes wrong:** Papers with empty abstract are always excluded.  
-**Why it happens:** Assuming abstract always present.  
-**How to avoid:** Allow title-only match if `Abstract` is empty.  
-**Warning signs:** Empty-abstract papers never delivered even with survey titles.
+### Pitfall 3: Category Matching Too Narrow
+**What goes wrong:** Only primary category checked; cross-listed papers dropped.  
+**Why it happens:** Assuming fetch topic equals eligibility.  
+**How to avoid:** Check `paper.Categories` for any match with `topicList`.  
+**Warning signs:** Papers missing despite having target category in secondary list.
 
 ## Code Examples
 
-### Normalization Helper
+Verified patterns from existing codebase:
+
+### Send HTML Notification
 ```go
-// Source: internal/client/arxiv/client.go (cleanText pattern) + internal/cron/arxiv_fetcher.go
-func normalizeForMatch(s string) string {
-	s = strings.ToLower(s)
-	s = strings.ReplaceAll(s, "-", " ")
-	return strings.Join(strings.Fields(s), " ")
+// Source: internal/cron/arxiv_fetcher.go
+func (f *ArxivFetcher) sendNotification(ctx context.Context, topic string, paper arxiv.Paper) {
+    err := f.limiter.Do(ctx, func(ctx context.Context) error {
+        return f.notifier.SendHTML(ctx, f.chatID, formatPaper(topic, paper))
+    })
+    if err != nil {
+        f.l.Errorw("failed to send paper notification",
+            "paper_id", paper.ArxivID,
+            zap.Error(err),
+        )
+    }
 }
 ```
 
@@ -156,23 +160,23 @@ func normalizeForMatch(s string) string {
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| No filtering | Survey + category filtering | Phase 1 | Telegram receives only survey/review papers in configured categories. |
+| Send all papers per topic | Filter by category + survey keywords before send | Phase 1 | Reduces noise; keeps format unchanged. |
 
 **Deprecated/outdated:**
-- None for this phase.
+- None — filtering is new behavior for this phase.
 
 ## Open Questions
 
-1. **Exact keyword list for FILT-03**
-   - What we know: Must include provided phrases (e.g., "survey", "review", "state of the art", "taxonomy").
-   - What's unclear: Full canonical list and any variants beyond those examples.
-   - Recommendation: Confirm the full list before implementation to avoid rework.
+1. **Should we log skipped papers (counts only) or keep silent?**
+   - What we know: Current fetcher logs errors only, not per-paper decisions.
+   - What's unclear: Desired verbosity for eligibility filtering.
+   - Recommendation: Default to minimal logging (optional debug-level counts) to avoid log noise.
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Go toolchain | Build/tests | ✓ | go1.26.1 | — |
+| Go toolchain | Build/test | ✓ | 1.26.1 | — |
 
 **Missing dependencies with no fallback:**
 - None.
@@ -186,37 +190,33 @@ func normalizeForMatch(s string) string {
 | Property | Value |
 |----------|-------|
 | Framework | Go `testing` (stdlib) |
-| Config file | none |
-| Quick run command | `go test ./...` |
+| Config file | none — Go defaults |
+| Quick run command | `go test ./internal/cron -run TestArxivFetcherEligibility -count=1` |
 | Full suite command | `go test ./...` |
 
 ### Phase Requirements → Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| FILT-01 | Categories in configured list only | unit | `go test ./internal/cron -run TestSurveyFilterCategories -v` | ❌ Wave 0 |
-| FILT-02 | Case-insensitive keyword match in title/abstract | unit | `go test ./internal/cron -run TestSurveyFilterKeywords -v` | ❌ Wave 0 |
-| FILT-03 | Fixed keyword list includes required phrases | unit | `go test ./internal/cron -run TestSurveyKeywordList -v` | ❌ Wave 0 |
-| FILT-04 | Only eligible papers sent | unit/integration | `go test ./internal/cron -run TestFetchPapersFiltersBeforeSend -v` | ❌ Wave 0 |
-| FILT-05 | Format unchanged | unit | `go test ./internal/cron -run TestFormatPaperUnchanged -v` | ❌ Wave 0 |
+|--------|----------|-----------|-------------------|--------------|
+| FILT-01 | Category list intersection required | unit | `go test ./internal/cron -run TestEligibilityCategory -count=1` | ❌ Wave 0 |
+| FILT-02 | Keyword match in title/abstract, case-insensitive | unit | `go test ./internal/cron -run TestEligibilityKeywords -count=1` | ❌ Wave 0 |
+| FILT-03 | Fixed keyword list includes phrases + spacing/hyphen variants | unit | `go test ./internal/cron -run TestEligibilityKeywordVariants -count=1` | ❌ Wave 0 |
+| FILT-04 | Only eligible papers sent | unit | `go test ./internal/cron -run TestFetchSkipsIneligible -count=1` | ❌ Wave 0 |
+| FILT-05 | Format unchanged | unit | `go test ./internal/cron -run TestFormatPaperUnchanged -count=1` | ❌ Wave 0 |
 
 ### Sampling Rate
-- **Per task commit:** `go test ./internal/cron -run TestSurveyFilter.* -v`
+- **Per task commit:** `go test ./internal/cron -run TestArxivFetcherEligibility -count=1`
 - **Per wave merge:** `go test ./...`
 - **Phase gate:** Full suite green before `/gsd:verify-work`
 
 ### Wave 0 Gaps
-- [ ] `internal/cron/survey_filter_test.go` — eligibility + keyword list coverage
-- [ ] `internal/cron/arxiv_fetcher_test.go` — ensure filter gates send
+- [ ] `internal/cron/arxiv_fetcher_test.go` — eligibility + fetch behavior tests
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `internal/cron/arxiv_fetcher.go` — current fetch loop, topic list, formatting
-- `internal/client/arxiv/client.go` — category parsing and text normalization
-- `internal/client/arxiv/paper.go` — paper fields used by filter
-- `.planning/phases/01-survey-filter-delivery/01-CONTEXT.md` — locked decisions
-- `.planning/REQUIREMENTS.md` — FILT-01..FILT-05 definitions
-- `CLAUDE.md` — project conventions and constraints
+- `internal/cron/arxiv_fetcher.go` — current fetch loop, topic list, send/format
+- `internal/client/arxiv/paper.go` — paper fields used for matching
+- `internal/client/arxiv/client.go` — category + abstract parsing
 
 ### Secondary (MEDIUM confidence)
 - None.
@@ -227,9 +227,9 @@ func normalizeForMatch(s string) string {
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH — derived from repo stack and go.mod.
-- Architecture: MEDIUM — based on existing cron structure; no new patterns required.
-- Pitfalls: MEDIUM — inferred from requirements and current code path.
+- Standard stack: HIGH - versions pinned in `go.mod`.
+- Architecture: HIGH - existing pipeline structure is clear in `internal/cron/arxiv_fetcher.go`.
+- Pitfalls: MEDIUM - based on expected string/category matching edge cases.
 
 **Research date:** 2026-03-31  
 **Valid until:** 2026-04-30
