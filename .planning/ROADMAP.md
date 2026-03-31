@@ -1,8 +1,8 @@
-# Roadmap: go-rag-arxiv
+# Roadmap: Arxiv Survey Filter
 
 ## Overview
 
-This roadmap delivers the missing `Ask` capability, aligns API/config contracts with runtime behavior, hardens service security posture, and adds deterministic reliability tests across transport, scheduler, and external clients while preserving existing `Search` and notification behavior.
+Deliver a single, reliable filter layer that only forwards survey/review papers from the configured arXiv categories to Telegram, while preserving existing schedule and message formatting.
 
 ## Phases
 
@@ -12,78 +12,27 @@ This roadmap delivers the missing `Ask` capability, aligns API/config contracts 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Contract Baseline** - Align public RPC/config contracts with implemented runtime behavior.
-- [ ] **Phase 2: RAG Ask Delivery** - Deliver end-to-end `Ask` answering with retrieval, citations, and stable error mapping.
-- [ ] **Phase 3: Security Hardening** - Enable secure production transport and safer endpoint/message handling.
-- [ ] **Phase 4: Transport Determinism** - Add deterministic transport tests for gRPC behavior and validation paths.
-- [ ] **Phase 5: Workflow Resilience Tests** - Add deterministic tests for scheduler and external client failure handling.
+- [ ] **Phase 1: Survey Filter Delivery** - Survey-only filtering in the existing arXiv → Telegram pipeline
 
 ## Phase Details
 
-### Phase 1: Contract Baseline
-**Goal**: Service contracts match real runtime behavior so callers and operators see no drift between declared and implemented capabilities.
+### Phase 1: Survey Filter Delivery
+**Goal**: Only survey/review papers from the configured categories are delivered to Telegram with unchanged formatting
 **Depends on**: Nothing (first phase)
-**Requirements**: APC-01, APC-02
+**Requirements**: FILT-01, FILT-02, FILT-03, FILT-04, FILT-05
 **Success Criteria** (what must be TRUE):
-  1. Operator can start the service without providing unused required secrets.
-  2. gRPC API surface exposed by the server matches the proto contract without declared-but-unimplemented public RPCs.
-  3. Configuration validation errors clearly identify missing values that are actually required at runtime.
-**Plans**: 2 plans
-Plans:
-- [x] 01-contract-baseline-01-PLAN.md — Align proto and generated gRPC contract to implemented runtime RPC surface (APC-01).
-- [x] 01-contract-baseline-02-PLAN.md — Align runtime config requirements and startup validation with actual usage (APC-02).
-
-### Phase 2: RAG Ask Delivery
-**Goal**: Users can ask natural-language questions over gRPC and receive grounded answers with paper citations.
-**Depends on**: Phase 1
-**Requirements**: RAG-01, RAG-02, RAG-03, APC-03
-**Success Criteria** (what must be TRUE):
-  1. User can call `Ask` over gRPC and receive a non-empty answer payload for valid requests.
-  2. `Ask` responses are grounded in retrieved arXiv papers rather than returning an answer without retrieval context.
-  3. User receives citations in `Ask` output including paper identifiers/titles/links.
-  4. User receives stable gRPC status codes for invalid input and downstream retrieval/generation failures.
-**Plans**: 3 plans
-Plans:
-- [ ] 02-01-PLAN.md — Reintroduce Ask proto/generated gRPC contract with transport contract tests (RAG-01).
-- [ ] 02-02-PLAN.md — Implement retrieval-first Ask runtime pipeline, citations, handler wiring, and status/error mapping (RAG-02, RAG-03, APC-03).
-- [ ] 02-03-PLAN.md — Add deterministic Ask transport/pipeline/client tests and full phase verification gate (RAG-01, RAG-02, RAG-03, APC-03).
-
-### Phase 3: Security Hardening
-**Goal**: Service can be run in a production-ready secure mode for transport and endpoint/message handling.
-**Depends on**: Phase 2
-**Requirements**: OPS-01, OPS-02, OPS-03
-**Success Criteria** (what must be TRUE):
-  1. Operator can run gRPC with TLS enabled and clients can connect using that secure transport.
-  2. Exposed endpoints enforce defined access controls (bind policy and/or auth guard) rather than unrestricted access by default.
-  3. Telegram notifications render dynamic paper content safely without formatting injection side effects.
-**Plans**: TBD
-
-### Phase 4: Transport Determinism
-**Goal**: gRPC transport behavior is verifiable through deterministic automated tests.
-**Depends on**: Phase 2
-**Requirements**: REL-01
-**Success Criteria** (what must be TRUE):
-  1. Automated tests deterministically validate `Search` transport behavior and response expectations.
-  2. Automated tests deterministically validate `Ask` transport behavior and response expectations.
-  3. Automated tests deterministically validate request validation and gRPC status-code mapping paths.
-**Plans**: TBD
-
-### Phase 5: Workflow Resilience Tests
-**Goal**: Scheduled workflows and external client integrations are covered by deterministic resilience tests.
-**Depends on**: Phase 4
-**Requirements**: REL-02, REL-03
-**Success Criteria** (what must be TRUE):
-  1. Scheduler tests deterministically verify fetch-and-notify execution flow on successful runs.
-  2. Scheduler tests deterministically verify failure handling without nondeterministic timing flakiness.
-  3. arXiv and Telegram client tests deterministically verify retry/non-200/error-path behavior.
+  1. Only papers whose arXiv category is in the configured list (`cs.AI`, `cs.CL`) are eligible.
+  2. A paper is eligible only if a survey keyword matches case-insensitive in title or abstract.
+  3. The survey keyword list is fixed and includes the provided phrases (e.g., "survey", "review", "state of the art", "taxonomy").
+  4. Telegram receives only eligible papers.
+  5. Message formatting for eligible papers is unchanged from current output.
 **Plans**: TBD
 
 ## Progress
 
+**Execution Order:**
+Phases execute in numeric order: 1 → 1.1 → 1.2 → 2
+
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Contract Baseline | 2/2 | Complete | 2026-03-31 |
-| 2. RAG Ask Delivery | 0/TBD | Not started | - |
-| 3. Security Hardening | 0/TBD | Not started | - |
-| 4. Transport Determinism | 0/TBD | Not started | - |
-| 5. Workflow Resilience Tests | 0/TBD | Not started | - |
+| 1. Survey Filter Delivery | 0/TBD | Not started | - |

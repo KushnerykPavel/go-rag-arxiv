@@ -57,196 +57,170 @@ proto/arxiv/v1/       protobuf source for ArxivService (Search, Ask RPCs)
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
-**go-rag-arxiv**
+**Arxiv Survey Filter**
 
-go-rag-arxiv is a Go service that fetches recent arXiv papers on a schedule, exposes paper search over gRPC, and sends paper notifications to Telegram. It is aimed at users who want a lightweight backend for research paper discovery and alerting. The codebase is currently a brownfield baseline with retrieval/search implemented and answer-generation (RAG `Ask`) still pending.
+A filter layer on the existing arXiv fetch → Telegram pipeline that only forwards survey/review-style papers in the specified arXiv categories. It is designed for internal use to reduce noise by sending only higher-level survey content about AI (and related topics as defined by the category list).
 
-**Core Value:** Deliver relevant arXiv paper discovery and notifications reliably, with a clear path to answer-generation over retrieved papers.
+**Core Value:** Only survey/review articles from the chosen arXiv categories reach the Telegram channel.
 
 ### Constraints
 
-- **Tech stack**: Go + gRPC + existing client abstractions — preserve current patterns to reduce refactor risk.
-- **Brownfield compatibility**: Existing `Search` API and scheduled notification behavior must remain stable while adding new features.
-- **Operational simplicity**: Service should remain straightforward to run in containerized environments with env-based configuration.
-- **Quality**: New work should increase deterministic test coverage, especially around transport and scheduled workflows.
+- **Source**: arXiv API — existing integration must remain the input source
+- **Runtime**: Go service with existing cron job — must integrate with current pipeline
+- **Filter Logic**: Keyword list is fixed for v1; match is case-insensitive over title + abstract
+- **Categories**: Only those in the current topic list (`cs.AI`, `cs.CL`)
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:codebase/STACK.md -->
 ## Technology Stack
 
 ## Languages
-- Go 1.26 - application code and build target in `go.mod`, `main/main.go`, and `internal/**/*.go`.
-- Protocol Buffers (proto3) - gRPC contract definitions in `proto/arxiv/v1/arxiv.proto`.
-- YAML - protobuf generation/lint configuration in `buf.gen.yaml` and `buf.yaml`; container orchestration config in `docker-compose.yml`.
-- Dockerfile syntax - container build/runtime definition in `Dockerfile`.
+- Go 1.26 - Application source in `main/main.go` and `internal/**/*.go`
+- Protocol Buffers - Service contracts in `proto/` with generated code in `internal/gen/arxiv/v1/`
 ## Runtime
-- Go runtime, target toolchain `go 1.26` from `go.mod`.
-- Linux container runtime for production image (`FROM scratch`) in `Dockerfile`.
-- Go Modules via `go.mod`/`go.sum`.
-- Lockfile: present (`go.sum`).
+- Go toolchain 1.26 (`go.mod`, `Dockerfile`)
+- Go modules - `go.mod` / `go.sum`
+- Lockfile: present (`go.sum`)
 ## Frameworks
-- `github.com/go-chi/chi/v5` (`go.mod`) - HTTP routing and middleware wiring in `internal/app/app.go`.
-- `google.golang.org/grpc` (`go.mod`) - gRPC server and generated protobuf service stubs in `internal/app/app.go`, `internal/server/grpc/arxiv.go`, `internal/gen/arxiv/v1/arxiv_grpc.pb.go`.
-- `github.com/go-co-op/gocron/v2` (`go.mod`) - scheduled daily jobs in `internal/app/app.go`.
-- Go standard `testing` package - test file `internal/client/arxiv/client_test.go`.
-- `buf` (configured in `buf.yaml` and `buf.gen.yaml`) - protobuf linting and Go/gRPC stub generation to `internal/gen/`.
-- Docker multi-stage build (`Dockerfile`) - reproducible binary build and minimal runtime image.
+- `github.com/go-chi/chi/v5` v5.2.5 - HTTP routing (`internal/app/app.go`)
+- `google.golang.org/grpc` v1.79.2 - gRPC server (`internal/app/app.go`, `internal/server/grpc/arxiv.go`)
+- `github.com/go-co-op/gocron/v2` v2.19.1 - scheduled jobs (`internal/app/app.go`, `internal/cron/arxiv_fetcher.go`)
+- Go standard library `testing` - tests in `internal/**/*_test.go`
+- Buf (v2 config) - Protobuf lint/breaking/generation (`buf.yaml`, `buf.gen.yaml`)
+- `protoc-gen-go`, `protoc-gen-go-grpc` - code generation (`buf.gen.yaml`)
 ## Key Dependencies
-- `github.com/kelseyhightower/envconfig` (`go.mod`) - environment-driven config loading in `main/main.go` and struct tags in `internal/app/config.go`.
-- `go.uber.org/zap` (`go.mod`) - structured logging setup in `main/main.go` and app/client modules such as `internal/app/app.go`.
-- `golang.org/x/sync/errgroup` (`go.mod`) - coordinated goroutine lifecycle in `internal/app/app.go`.
-- `golang.org/x/time/rate` (`go.mod`) - rate limiting wrapper in `internal/wrappers/ratelimit.go`.
-- `google.golang.org/protobuf` (`go.mod`) - protobuf runtime used by generated code in `internal/gen/arxiv/v1/arxiv.pb.go`.
-- Standard library `net/http` - outbound API clients and inbound health endpoint in `internal/client/arxiv/client.go`, `internal/client/telegram/client.go`, and `internal/app/app.go`.
+- `github.com/kelseyhightower/envconfig` v1.4.0 - runtime config from env vars (`main/main.go`, `internal/app/config.go`)
+- `go.uber.org/zap` v1.27.1 - structured logging (`main/main.go`, `internal/app/app.go`)
+- `golang.org/x/sync` v0.19.0 - errgroup for concurrency (`internal/app/app.go`)
+- `golang.org/x/time` v0.14.0 - rate limiting utilities (`internal/wrappers/ratelimit.go`)
+- `google.golang.org/protobuf` v1.36.11 - protobuf runtime (`internal/gen/arxiv/v1/arxiv.pb.go`)
 ## Configuration
-- App config is loaded via `envconfig.Process("arxiv-rag-go", &cfg)` in `main/main.go`.
-- Required/optional variables are declared in `internal/app/config.go`:
-- `ADDRESS` (default `:8080`)
-- `GRPC_ADDRESS` (default `:9090`)
-- `GROQ_API_KEY` (required by config; no current call site found in `internal/**/*.go`)
-- `TELEGRAM_TOKEN` (required)
-- `TELEGRAM_CHAT_ID` (required)
-- `.env.example` is present at repository root; contents intentionally not read.
-- Docker Compose references an env file (`env_file: .env`) and port mapping in `docker-compose.yml`.
-- Protobuf build config files: `buf.yaml`, `buf.gen.yaml`.
-- Container build config file: `Dockerfile`.
-- Go module/build metadata: `go.mod`, `go.sum`.
+- Env vars via `envconfig.Process("arxiv-rag-go", &cfg)` (`main/main.go`)
+- Example env file: `.env.example` (used by `docker-compose.yml` via `env_file: .env`)
+- Required runtime keys validated in `internal/app/config.go`
+- Docker multi-stage build (`Dockerfile`)
+- Protobuf build configs (`buf.yaml`, `buf.gen.yaml`)
 ## Platform Requirements
-- Go 1.26 toolchain (`go.mod`).
-- `buf` CLI for lint/generation workflows referenced in `CLAUDE.md` and configured in `buf.yaml`/`buf.gen.yaml`.
-- Network access required for outbound HTTPS integrations used in `internal/client/arxiv/client.go` and `internal/client/telegram/client.go`.
-- Container-capable environment that can run the image built from `Dockerfile`.
-- HTTPS trust store is required and embedded by copying CA certs in `Dockerfile`.
-- Exposed HTTP health port and gRPC port configured by `ADDRESS`/`GRPC_ADDRESS` in `internal/app/config.go`.
+- Go 1.26 toolchain
+- Buf + protobuf plugins if regenerating gRPC code (`buf.gen.yaml`)
+- Container image built from `Dockerfile` (scratch + CA certs)
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
 ## Naming Patterns
-- Use `snake_case.go` for multi-word filenames in implementation code, e.g. `internal/cron/arxiv_fetcher.go` and `internal/wrappers/ratelimit.go`.
-- Use `_test.go` suffix for test files, e.g. `internal/client/arxiv/client_test.go`.
-- Generated protobuf files use `*.pb.go` / `*_grpc.pb.go`, e.g. `internal/gen/arxiv/v1/arxiv.pb.go`.
-- Use exported `PascalCase` for public API (`NewClient`, `FetchPapers`, `SendHTML`) in `internal/client/arxiv/client.go` and `internal/client/telegram/client.go`.
-- Use unexported `camelCase` for internal helpers (`fetchPapers`, `doGet`, `parseSingleEntry`) in `internal/client/arxiv/client.go`.
-- Constructor naming follows `New<Type>` (`New`, `NewArxivFetcher`, `NewArxivHandler`) in `internal/app/app.go`, `internal/cron/arxiv_fetcher.go`, and `internal/server/grpc/arxiv.go`.
-- Local variables use short `camelCase` names (`cfg`, `errGrp`, `srv`, `lis`) in `internal/app/app.go`.
-- Receivers use single-letter names tied to type (`a *App`, `c *Client`, `f *ArxivFetcher`, `h *ArxivHandler`) across `internal/app/app.go`, `internal/client/arxiv/client.go`, `internal/cron/arxiv_fetcher.go`, and `internal/server/grpc/arxiv.go`.
-- Exported domain/service types use `PascalCase` (`App`, `Client`, `Paper`, `ArxivFetcher`, `ArxivHandler`) in `internal/app/app.go`, `internal/client/arxiv/paper.go`, and related packages.
-- Internal dependency seams are interfaces named by capability (`fetcher`, `notifier`, `paperFetcher`) in `internal/cron/arxiv_fetcher.go` and `internal/server/grpc/arxiv.go`.
-- Options pattern uses `type Option func(*Config)` in `internal/client/arxiv/config.go` and `internal/client/telegram/config.go`.
+- Use `snake_case.go` for multi-word filenames, e.g. `internal/cron/arxiv_fetcher.go`, `internal/wrappers/ratelimit.go`.
+- Use `_test.go` suffix for tests, e.g. `internal/app/config_test.go`, `internal/server/grpc/arxiv_ask_test.go`.
+- Generated protobuf files use `*.pb.go` and `*_grpc.pb.go`, e.g. `internal/gen/arxiv/v1/arxiv.pb.go`.
+- Exported functions/types are `PascalCase` (`NewArxivHandler`, `FetchPapers`, `SendMarkdown`) in `internal/server/grpc/arxiv.go`, `internal/client/arxiv/client.go`, `internal/client/telegram/client.go`.
+- Unexported helpers are `camelCase` (`fetchPapers`, `doGet`, `parseSingleEntry`) in `internal/client/arxiv/client.go`.
+- Short `camelCase` locals for small scopes (`cfg`, `errGrp`, `srv`, `lis`) in `internal/app/app.go`.
+- Receiver names are single-letter tied to type (`a *App`, `c *Client`, `f *ArxivFetcher`, `h *ArxivHandler`) across `internal/app/app.go`, `internal/client/arxiv/client.go`, `internal/cron/arxiv_fetcher.go`, `internal/server/grpc/arxiv.go`.
+- Exported domain/service types in `PascalCase` (`App`, `Client`, `Paper`, `ArxivFetcher`, `ArxivHandler`) in `internal/app/app.go`, `internal/client/arxiv/paper.go`, `internal/cron/arxiv_fetcher.go`, `internal/server/grpc/arxiv.go`.
+- Internal dependency seams are unexported interfaces named by capability (`fetcher`, `notifier`, `paperFetcher`, `askService`) in `internal/cron/arxiv_fetcher.go`, `internal/server/grpc/arxiv.go`.
 ## Code Style
-- Tool used: `gofmt` style (tabs, canonical import formatting) is the effective formatter across all Go files such as `main/main.go` and `internal/client/arxiv/client.go`.
-- Key settings: No repo-level formatter config file detected; rely on standard Go formatting (`go.mod` with `go 1.26`).
-- Tool used: Not detected (`.eslintrc*`, `.prettierrc*`, `eslint.config.*`, `biome.json` are absent).
+- Tool used: `gofmt` (standard Go formatting in all Go files such as `main/main.go`, `internal/client/arxiv/client.go`).
+- Key settings: No repo-level formatter config detected; use `go fmt ./...` from `CLAUDE.md`.
+- Tool used: Not detected (no `.golangci.*` or equivalent config files found).
 - Key rules:
-- Explicit lint suppression exists for `forbidigo` only where `log.Printf` is intentionally used in signal/logger-sync paths in `main/main.go`.
-- Prefer wrapping errors with `%w` and contextual messages (`fmt.Errorf("...: %w", err)`) in `internal/app/app.go`, `internal/client/arxiv/client.go`, `internal/client/telegram/client.go`, and `internal/wrappers/ratelimit.go`.
+- Inline lint suppression exists for `forbidigo` in `main/main.go` where `log.Printf` is intentionally used.
 ## Import Organization
-- Explicit aliases are used when names would collide or to increase clarity:
-- `arxivv1` for protobuf package in `internal/app/app.go` and `internal/server/grpc/arxiv.go`.
-- `grpcserver` alias for internal gRPC handler package in `internal/app/app.go`.
+- Use aliases where clarity or name conflicts exist:
+- `arxivv1` for protobuf package in `internal/app/app.go`, `internal/server/grpc/arxiv.go`.
+- `grpcserver` for handler package in `internal/app/app.go`.
 ## Error Handling
-- Return errors with context and wrapping (`%w`) at boundaries:
-- Scheduler/server/client setup in `internal/app/app.go`.
-- HTTP and XML operations in `internal/client/arxiv/client.go`.
-- Telegram API request/response flow in `internal/client/telegram/client.go`.
-- Convert invalid client input to gRPC status errors (`codes.InvalidArgument`) and backend failures to `codes.Internal` in `internal/server/grpc/arxiv.go`.
-- For background/loop operations, log and continue instead of failing entire job (`FetchPapers` loop and notification sending) in `internal/cron/arxiv_fetcher.go`.
-- Selective ignore pattern (`_ =`) is used for non-critical operations (startup/shutdown Telegram notifications, health-write return) in `internal/app/app.go`.
+- Wrap errors with context and `%w` (`fmt.Errorf("creating scheduler: %w", err)`) in `internal/app/app.go`, `internal/client/arxiv/client.go`, `internal/client/telegram/client.go`, `internal/wrappers/ratelimit.go`.
+- Use sentinel errors for domain classification (`ErrAskInvalidInput`, `ErrAskRateLimited`) in `internal/rag/ask_pipeline.go`.
+- Map domain errors to transport errors in gRPC handlers using `status.Error`/`status.Errorf` and `codes.*` in `internal/server/grpc/arxiv.go`.
+- Use `errors.Is`/`errors.As`/`errors.Join` to classify upstream errors in `internal/rag/ask_pipeline.go`.
+- In background loops, log and continue on per-item failures (`ArxivFetcher.FetchPapers`) in `internal/cron/arxiv_fetcher.go`.
+- Use selective ignores for non-critical operations (`_ = telegramClient.SendMarkdown(...)`, `_ = w.Write(...)`) in `internal/app/app.go`.
 ## Logging
-- Inject logger dependency from top-level (`main/main.go` -> `app.New` -> constructors in internal packages).
-- Attach structured context with `.With(...)` during client/handler/fetcher construction:
-- `internal/client/telegram/client.go`
-- `internal/cron/arxiv_fetcher.go`
-- `internal/server/grpc/arxiv.go`
-- Use structured fields through `Infow/Errorw/Warnw` in service code.
-- Use fatal logging for unrecoverable startup failure in `main/main.go`.
+- Logger is constructed at entrypoint and injected (`main/main.go` -> `app.New` -> internal clients).
+- Add scoped context via `.With(...)` during construction in `internal/client/groq/client.go`, `internal/client/telegram/client.go`, `internal/cron/arxiv_fetcher.go`, `internal/server/grpc/arxiv.go`.
+- Use structured `Infow`, `Warnw`, `Errorw` for operational events in `internal/app/app.go`, `internal/client/arxiv/client.go`, `internal/cron/arxiv_fetcher.go`.
+- Fatal logging only at top-level for unrecoverable startup failures in `main/main.go`.
 ## Comments
-- Public exported types/functions are documented with concise doc comments (`Client`, `FetchParams`, `DownloadPDF`, `RateLimiter`) in `internal/client/arxiv/client.go` and `internal/wrappers/ratelimit.go`.
-- Complex protocol/API behavior is explained with targeted comments (arXiv query escaping and version stripping) in `internal/client/arxiv/client.go`.
-- Not applicable for this Go repository.
-- Go doc comments are used for exported symbols in `internal/client/arxiv/*.go`, `internal/client/telegram/*.go`, and `internal/wrappers/ratelimit.go`.
+- Exported types/functions use doc comments (e.g., `Client`, `FetchParams`, `RateLimiter`) in `internal/client/arxiv/client.go`, `internal/wrappers/ratelimit.go`.
+- Behavior-specific clarifications appear near tricky logic (e.g., arXiv query escaping, version suffix stripping) in `internal/client/arxiv/client.go`.
+- Not applicable (Go codebase).
 ## Function Design
-- Business and infra operations usually return `(value, error)` (`FetchPapers`, `FetchPaperByID`, `Search`) in `internal/client/arxiv/client.go` and `internal/server/grpc/arxiv.go`.
-- Fire-and-forget scheduler task uses no return and handles errors via logging inside method (`ArxivFetcher.FetchPapers`) in `internal/cron/arxiv_fetcher.go`.
 ## Module Design
-- Exported API in `internal/client/arxiv/client.go` and `internal/client/telegram/client.go`
-- Unexported helpers for parsing/network internals in `internal/client/arxiv/client.go`
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
 ## Pattern Overview
-- Single binary entrypoint in `main/main.go` that wires config, logging, lifecycle, and app execution.
-- Central application orchestrator in `internal/app/app.go` that composes HTTP, gRPC, scheduler, and external clients.
-- Interface-driven boundaries in `internal/cron/arxiv_fetcher.go` and `internal/server/grpc/arxiv.go` to decouple orchestration from concrete clients.
+- Single process hosting HTTP health, gRPC API, and scheduled jobs.
+- External integrations encapsulated behind client interfaces.
+- Business logic concentrated in a small service layer.
 ## Layers
-- Purpose: Process environment configuration, initialize logger, own OS signal lifecycle, start the app.
-- Location: `main/main.go`
-- Contains: `main()`, signal handler, `envconfig.Process` wiring to `app.Config`.
-- Depends on: `internal/app`, `github.com/kelseyhightower/envconfig`, `go.uber.org/zap`.
-- Used by: Process startup (`go run ./main` or built container entrypoint from `Dockerfile`).
-- Purpose: Compose runtime components and supervise HTTP, gRPC, scheduler, and graceful shutdown.
-- Location: `internal/app/app.go`, `internal/app/config.go`
-- Contains: `App.Run`, scheduler job registration, HTTP `/health`, gRPC server registration.
-- Depends on: `internal/client/arxiv`, `internal/client/telegram`, `internal/cron`, `internal/server/grpc`, `internal/wrappers`, `internal/gen/arxiv/v1`.
-- Used by: `main/main.go`.
-- Purpose: Accept inbound network traffic and map transport models to domain/client operations.
-- Location: `internal/server/grpc/arxiv.go`, `proto/arxiv/v1/arxiv.proto`, `internal/gen/arxiv/v1/arxiv.pb.go`, `internal/gen/arxiv/v1/arxiv_grpc.pb.go`
-- Contains: gRPC handler (`ArxivHandler`) and protobuf contracts (`ArxivService`, `SearchRequest`, `SearchResponse`, etc.).
-- Depends on: `internal/client/arxiv` for fetching papers, generated protobuf package in `internal/gen/arxiv/v1`.
-- Used by: gRPC server setup in `internal/app/app.go`.
-- Purpose: Run scheduled arXiv fetch workflows and fan out notifications.
+- Purpose: Compose dependencies, start servers/scheduler, manage shutdown.
+- Location: `internal/app/app.go`
+- Contains: wiring, cron schedule, server startup, lifecycle control.
+- Depends on: `internal/client/*`, `internal/cron`, `internal/rag`, `internal/server/grpc`, `internal/wrappers`
+- Used by: `main/main.go`
+- Purpose: Expose API endpoints and translate between proto and domain models.
+- Location: `internal/server/grpc/arxiv.go`
+- Contains: gRPC handlers, validation, error mapping, proto conversion.
+- Depends on: `internal/rag`, `internal/client/arxiv`, `internal/gen/arxiv/v1`
+- Used by: `internal/app/app.go`
+- Purpose: RAG ask pipeline (retrieval + generation) and error semantics.
+- Location: `internal/rag/ask_pipeline.go`
+- Contains: request validation, retrieval orchestration, context building, error classification.
+- Depends on: `internal/client/arxiv` (via interface), generator interface.
+- Used by: `internal/app/app.go`, `internal/server/grpc/arxiv.go`
+- Purpose: Periodic arXiv fetch and notification flow.
 - Location: `internal/cron/arxiv_fetcher.go`
-- Contains: `ArxivFetcher`, fixed topic list, per-paper notification loop.
-- Depends on: `internal/client/arxiv` types, notifier interface (implemented by telegram client), `internal/wrappers/ratelimit.go`.
-- Used by: Scheduler registration in `internal/app/app.go`.
-- Purpose: Encapsulate HTTP communication with external services.
-- Location: `internal/client/arxiv/client.go`, `internal/client/arxiv/config.go`, `internal/client/arxiv/paper.go`, `internal/client/telegram/client.go`, `internal/client/telegram/config.go`
-- Contains: arXiv query/download logic, XML parsing, Telegram message dispatch.
-- Depends on: stdlib HTTP/XML/time, zap logging.
-- Used by: `internal/app/app.go`, `internal/server/grpc/arxiv.go`, `internal/cron/arxiv_fetcher.go`.
-- Purpose: Cross-cutting helper utilities used by workflows.
+- Contains: topic list, fetch loop, notification formatting.
+- Depends on: `internal/client/arxiv`, `internal/client/telegram`, `internal/wrappers`
+- Used by: `internal/app/app.go`
+- Purpose: Integrate external APIs (arXiv, Groq, Telegram).
+- Location: `internal/client/arxiv/*`, `internal/client/groq/*`, `internal/client/telegram/*`
+- Contains: HTTP clients, request/response handling, config options.
+- Depends on: stdlib HTTP and config helpers.
+- Used by: `internal/app/app.go`, `internal/cron/arxiv_fetcher.go`, `internal/rag/ask_pipeline.go`
+- Purpose: Cross-cutting helpers (rate limiting).
 - Location: `internal/wrappers/ratelimit.go`
-- Contains: `RateLimiter` wrapper over `golang.org/x/time/rate`.
-- Depends on: `golang.org/x/time/rate`.
-- Used by: `internal/cron/arxiv_fetcher.go` via `limiter.Do`.
+- Contains: rate limiter wrapper with context-aware execution.
+- Depends on: `golang.org/x/time/rate`
+- Used by: `internal/app/app.go`, `internal/cron/arxiv_fetcher.go`
+- Purpose: gRPC/proto bindings.
+- Location: `internal/gen/arxiv/v1/arxiv.pb.go`, `internal/gen/arxiv/v1/arxiv_grpc.pb.go`
+- Contains: protobuf types and gRPC server interfaces.
+- Depends on: `proto/arxiv/v1/arxiv.proto`
+- Used by: `internal/server/grpc/arxiv.go`, `internal/app/app.go`
 ## Data Flow
-- Primarily stateless request/job processing with ephemeral in-memory state.
-- Explicit mutable state exists in `internal/client/arxiv/client.go` (`lastRequestAt` + mutex) for client-side rate limiting.
-- Runtime services (HTTP server, gRPC server, scheduler) are lifecycle-managed in `internal/app/app.go` and tied to context cancellation from `main/main.go`.
+- Stateless services with in-memory config and logger only.
+- arXiv PDF downloads cached on disk under `.cache/pdfs` in `internal/client/arxiv/client.go`.
 ## Key Abstractions
-- Purpose: Runtime assembly and coordinated startup/shutdown.
-- Examples: `internal/app/app.go`, `internal/app/config.go`
-- Pattern: Composition root with explicit dependency construction.
-- Purpose: Internal canonical representation of paper metadata shared across cron and gRPC paths.
-- Examples: `internal/client/arxiv/paper.go`, mapped in `internal/server/grpc/arxiv.go`
-- Pattern: Plain data struct translated to transport DTOs.
-- Purpose: Decouple workflow/transport code from concrete clients.
-- Examples: `fetcher` and `notifier` in `internal/cron/arxiv_fetcher.go`, `paperFetcher` in `internal/server/grpc/arxiv.go`
-- Pattern: Small local interfaces consumed via constructor injection.
-- Purpose: Define and enforce gRPC API surface.
-- Examples: `proto/arxiv/v1/arxiv.proto`, generated outputs in `internal/gen/arxiv/v1/*.go`
-- Pattern: Proto-first API with generated server/client stubs.
+- Purpose: Retrieval + generation orchestration for RAG.
+- Examples: `internal/rag/ask_pipeline.go`
+- Pattern: Interface-based dependencies (`Retriever`, `Generator`) for testability.
+- Purpose: Transport adapter for gRPC.
+- Examples: `internal/server/grpc/arxiv.go`
+- Pattern: Thin handler that validates and delegates to services/clients.
+- Purpose: External API integration.
+- Examples: `internal/client/arxiv/client.go`, `internal/client/groq/client.go`, `internal/client/telegram/client.go`
+- Pattern: Configurable HTTP clients with option functions.
 ## Entry Points
 - Location: `main/main.go`
-- Triggers: Program execution (`./app`, `go run ./main`, container `ENTRYPOINT` from `Dockerfile`).
-- Responsibilities: Load env config into `app.Config`, create logger, handle SIGTERM/SIGINT, call `App.Run`.
-- Location: route registration in `internal/app/app.go`
-- Triggers: HTTP GET `/health` on configured `Config.Address`.
-- Responsibilities: Liveness-style JSON response `{"status":"ok"}`.
-- Location: server setup in `internal/app/app.go`, handler in `internal/server/grpc/arxiv.go`
-- Triggers: gRPC requests to `arxiv.v1.ArxivService/Search` (declared in `proto/arxiv/v1/arxiv.proto`).
-- Responsibilities: Validate request, execute arXiv search, map to protobuf response.
-- Location: job registration in `internal/app/app.go`
-- Triggers: Cron expression `0 5 * * *`.
-- Responsibilities: Run daily `ArxivFetcher.FetchPapers` workflow from `internal/cron/arxiv_fetcher.go`.
+- Triggers: Process start.
+- Responsibilities: Load config, init logger, run app, handle signals.
+- Location: `internal/app/app.go`
+- Triggers: `grpc.NewServer()` and `Serve` on `Config.GRPCAddress`.
+- Responsibilities: Register `ArxivService` and serve requests.
+- Location: `internal/app/app.go`
+- Triggers: `http.Server` on `Config.Address`.
+- Responsibilities: Serve `/health` endpoint.
+- Location: `internal/app/app.go`
+- Triggers: gocron job `0 5 * * *`.
+- Responsibilities: Run `internal/cron/arxiv_fetcher.go`.
 ## Error Handling
-- Error wrapping with context (`fmt.Errorf("...: %w", err)`) across `main/main.go`, `internal/app/app.go`, `internal/client/arxiv/client.go`, `internal/client/telegram/client.go`.
-- Transport-level error mapping in gRPC handler (`status.Error`, `codes.InvalidArgument`, `codes.Internal`) in `internal/server/grpc/arxiv.go`.
-- Best-effort shutdown/send operations (ignored errors on startup/stop Telegram notifications) in `internal/app/app.go`.
+- Domain errors in `internal/rag/ask_pipeline.go` mapped in `internal/server/grpc/arxiv.go`.
+- Startup validation in `internal/app/config.go` with explicit missing-config errors.
 ## Cross-Cutting Concerns
 <!-- GSD:architecture-end -->
 
