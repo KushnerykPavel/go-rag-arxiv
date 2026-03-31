@@ -3,6 +3,7 @@ package wrappers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -20,7 +21,7 @@ func NewRateLimiter(rps int) (*RateLimiter, error) {
 		return nil, fmt.Errorf("rps must be greater than zero, got %d", rps)
 	}
 	return &RateLimiter{
-		limiter: rate.NewLimiter(rate.Limit(rps), rps),
+		limiter: rate.NewLimiter(rate.Every(time.Duration(rps)*time.Minute), rps),
 	}, nil
 }
 

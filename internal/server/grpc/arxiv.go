@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -65,8 +66,13 @@ func (h *ArxivHandler) Search(ctx context.Context, req *arxivv1.SearchRequest) (
 }
 
 func (h *ArxivHandler) Ask(ctx context.Context, req *arxivv1.AskRequest) (*arxivv1.AskResponse, error) {
+	query := strings.TrimSpace(req.GetQuery())
+	if query == "" {
+		return nil, status.Error(codes.InvalidArgument, "query is required")
+	}
+
 	result, err := h.asker.Ask(ctx, rag.AskRequest{
-		Query: req.GetQuery(),
+		Query: query,
 		Limit: req.GetLimit(),
 	})
 	if err != nil {
